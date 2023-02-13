@@ -27,7 +27,7 @@ struct BucketType {
     uint256 activatedAt;
 }
 
-contract StakingContract is ERC721, Ownable, Pausable {
+contract SystemStaking is ERC721, Ownable, Pausable {
     event NewBucketType(uint256 amount, uint256 duration);
     // Mapping from token ID to bucket
     mapping(uint256 => BucketInfo) private __buckets;
