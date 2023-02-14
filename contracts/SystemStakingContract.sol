@@ -2,7 +2,6 @@
 pragma solidity >= 0.8;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
 
 struct BucketInfo {
     uint256 typeIndex;
@@ -18,7 +17,7 @@ struct BucketType {
 
 uint256 constant UINT256_MAX = type(uint256).max;
 
-contract SystemStaking is ERC721, Ownable, Pausable {
+contract SystemStaking is ERC721, Ownable {
     event NewBucketType(uint256 amount, uint256 duration);
     event BucketTypeActivated(uint256 amount, uint256 duration);
     event BucketTypeDeactivated(uint256 amount, uint256 duration);
@@ -27,12 +26,12 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     event DelegateChanged(uint256 tokenId, bytes8 oldDelegate, bytes8 newDelegate);
 
     modifier onlyValidToken(uint256 _tokenId) {
-        require(_exists(_tokenId), "invalid token id");
+        require(_exists(_tokenId), "invalid token");
         _;
     }
 
     modifier onlyStakedToken(uint256 _tokenId) {
-        require(_exists(_tokenId) && _isInStake(_tokenId), "invalid token id");
+        require(_exists(_tokenId) && _isInStake(_tokenId), "token not in stake");
         _;
     }
 
@@ -47,17 +46,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     // amount -> duration -> index
     mapping(uint256 => mapping(uint256 => uint256)) private __typeIndice;
 
-    // TODO: init ERC721
-    constructor() ERC721("", "") {
+    constructor() ERC721("BucketNFT", "BKT") {
         __nextTokenId = 1;
-    }
-
-    function pause() public onlyOwner {
-        _pause();
-    }
-
-    function unpause() public onlyOwner {
-        _unpause();
     }
 
     // bucket type related functions
@@ -127,6 +117,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return bucket.unstakedAt + __types[bucket.typeIndex].duration <= block.number;
     }
 
+    function bucketTypeOf(uint256 _tokenId) external onlyValidToken(_tokenId) view returns (BucketType memory) {
+        return __types[__buckets[_tokenId].typeIndex];
+    }
+
+    function delegateOf(uint256 _tokenId) external onlyValidToken(_tokenId) view returns (bytes8) {
+        return __buckets[_tokenId].delegate;
+    }
+
     function stake(uint256 _duration, bytes8 _delegate) payable external returns (uint256) {
         uint256 index = _bucketTypeIndex(msg.value, _duration);
         require(_isActiveBucketType(index), "not active bucket type");
@@ -153,24 +151,20 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _recipient.transfer(__types[__buckets[_tokenId].typeIndex].amount);
     }
 
-    function bucketTypeOf(uint256 _tokenId) external onlyValidToken(_tokenId) view returns (BucketType memory) {
-        return __types[__buckets[_tokenId].typeIndex];
-    }
-
-    function delegateOf(uint256 _tokenId) external view returns (bytes8) {
-        return __buckets[_tokenId].delegate;
-    }
-
-    function changeDelegate(uint256 _tokenId, bytes8 _delegate) external onlyStakedToken(_tokenId) {
+    function changeDelegate(uint256 _tokenId, bytes8 _delegate) public onlyStakedToken(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
-        __votes[bucket.delegate][bucket.typeIndex]--;
-        __votes[_delegate][bucket.typeIndex]++;
-        __buckets[_tokenId].delegate = _delegate;
-        emit DelegateChanged(_tokenId, bucket.delegate, _delegate);
+        if (bucket.delegate != _delegate) {
+            __votes[bucket.delegate][bucket.typeIndex]--;
+            __votes[_delegate][bucket.typeIndex]++;
+            __buckets[_tokenId].delegate = _delegate;
+            emit DelegateChanged(_tokenId, bucket.delegate, _delegate);
+        }
     }
 
     function changeDelegates(uint256[] calldata _tokenIds, bytes8 _delegate) public {
-        // TODO
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            changeDelegate(_tokenIds[i], _delegate);
+        }
     }
 
     function votesTo(bytes8[] calldata _delegates) external view returns (uint256[][] memory counts_) {
