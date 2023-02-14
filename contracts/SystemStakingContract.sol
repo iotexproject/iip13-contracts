@@ -146,11 +146,11 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         emit Unstaked(_tokenId);
     }
 
-    function withdraw(uint256 _tokenId, address payable _receipcent) external {
+    function withdraw(uint256 _tokenId, address payable _recipient) external {
         require(readyToWithdraw(_tokenId), "not ready to withdraw");
         require(msg.sender == ownerOf(_tokenId), "invalid owner");
         _burn(_tokenId);
-        _receipcent.transfer(__types[__buckets[_tokenId].typeIndex].amount);
+        _recipient.transfer(__types[__buckets[_tokenId].typeIndex].amount);
     }
 
     function bucketTypeOf(uint256 _tokenId) external onlyValidToken(_tokenId) view returns (BucketType memory) {
