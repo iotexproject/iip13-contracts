@@ -24,6 +24,7 @@ contract SystemStaking is ERC721, Ownable {
     event Staked(uint256 tokenId, uint256 amount, uint256 duration, bytes8 delegate);
     event Unstaked(uint256 tokenId);
     event DelegateChanged(uint256 tokenId, bytes8 oldDelegate, bytes8 newDelegate);
+    event EmergencyWithdrawal(uint256 tokenId, uint256 penaltyRate);
 
     modifier onlyValidToken(uint256 _tokenId) {
         require(_exists(_tokenId), "invalid token");
@@ -32,6 +33,11 @@ contract SystemStaking is ERC721, Ownable {
 
     modifier onlyStakedToken(uint256 _tokenId) {
         require(_exists(_tokenId) && _isInStake(_tokenId), "token not in stake");
+        _;
+    }
+
+    modifier onlyTokenOwner(uint256 _tokenId) {
+        require(msg.sender == ownerOf(_tokenId), "not owner");
         _;
     }
 
@@ -45,9 +51,28 @@ contract SystemStaking is ERC721, Ownable {
     BucketType[] private __types;
     // amount -> duration -> index
     mapping(uint256 => mapping(uint256 => uint256)) private __typeIndice;
+    // emergency withdraw related
+    uint256 private __emergencyWithdrawPenaltyRate;
 
     constructor() ERC721("BucketNFT", "BKT") {
         __nextTokenId = 1;
+        __emergencyWithdrawPenaltyRate = 100;
+    }
+
+    // emergency withdraw functions
+    function setEmergencyWithdrawPenaltyRate(uint256 _rate) public onlyOwner {
+        require(_rate <= 100, "");
+        __emergencyWithdrawPenaltyRate = _rate;
+    }
+
+    function emergencyWithdrawPenaltyRate() public view returns (uint256) {
+        return __emergencyWithdrawPenaltyRate;
+    }
+
+    function emergencyWithdraw(uint256 _tokenId, address payable _recipient) public {
+        unstake(_tokenId);
+        _withdraw(_tokenId, _recipient, 100 - __emergencyWithdrawPenaltyRate);
+        emit EmergencyWithdrawal(_tokenId, __emergencyWithdrawPenaltyRate);
     }
 
     // bucket type related functions
@@ -136,22 +161,24 @@ contract SystemStaking is ERC721, Ownable {
         return __nextTokenId++;
     }
 
-    function unstake(uint256 _tokenId) external onlyStakedToken(_tokenId) {
-        require(msg.sender == ownerOf(_tokenId), "invalid owner");
+    function unstake(uint256 _tokenId) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo storage bucket = __buckets[_tokenId];
         bucket.unstakedAt = block.number;
         __votes[bucket.delegate][bucket.typeIndex]--;
         emit Unstaked(_tokenId);
     }
 
-    function withdraw(uint256 _tokenId, address payable _recipient) external {
+    function withdraw(uint256 _tokenId, address payable _recipient) external onlyTokenOwner(_tokenId) {
         require(readyToWithdraw(_tokenId), "not ready to withdraw");
-        require(msg.sender == ownerOf(_tokenId), "invalid owner");
-        _burn(_tokenId);
-        _recipient.transfer(__types[__buckets[_tokenId].typeIndex].amount);
+        _withdraw(_tokenId, _recipient, 100);
     }
 
-    function changeDelegate(uint256 _tokenId, bytes8 _delegate) public onlyStakedToken(_tokenId) {
+    function _withdraw(uint256 _tokenId, address payable _recipient, uint256 _percent) internal {
+        _burn(_tokenId);
+        _recipient.transfer(__types[__buckets[_tokenId].typeIndex].amount * _percent / 100);
+    }
+
+    function changeDelegate(uint256 _tokenId, bytes8 _delegate) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
         if (bucket.delegate != _delegate) {
             __votes[bucket.delegate][bucket.typeIndex]--;
