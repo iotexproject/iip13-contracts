@@ -2,9 +2,10 @@
 pragma solidity >= 0.8;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LiquidityStaking is ERC20, Ownable {
+contract LiquidityStaking is ERC20, Ownable, IERC721Receiver {
 
     // TODO: add parameters
     constructor() ERC20("", "") {
@@ -69,5 +70,15 @@ contract LiquidityStaking is ERC20, Ownable {
 
     function changeDelegates(uint256[] calldata _bucketIds, bytes8 _delegate) public onlyOwner {
         // TODO: call system contract to update delegates
+    }
+
+    // must implement IERC721Receiver to receive staking NFT
+    function onERC721Received(
+        address, // operator
+        address, // from
+        uint256, // tokenId
+        bytes calldata// data
+    ) external pure override returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }
