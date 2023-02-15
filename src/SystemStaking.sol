@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >= 0.8;
+pragma solidity >=0.8;
+
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -21,10 +22,24 @@ contract SystemStaking is ERC721, Ownable {
     event NewBucketType(uint256 amount, uint256 duration);
     event BucketTypeActivated(uint256 amount, uint256 duration);
     event BucketTypeDeactivated(uint256 amount, uint256 duration);
-    event Staked(uint256 indexed tokenId, bytes8 indexed delegate, uint256 amount, uint256 duration);
+    event Staked(
+        uint256 indexed tokenId,
+        bytes8 indexed delegate,
+        uint256 amount,
+        uint256 duration
+    );
     event Unstaked(uint256 indexed tokenId);
-    event DelegateChanged(uint256 indexed tokenId, bytes8 indexed oldDelegate, bytes8 indexed newDelegate);
-    event Withdrawal(uint256 indexed tokenId, address indexed recipient, uint256 amount, uint256 penaltyFee);
+    event DelegateChanged(
+        uint256 indexed tokenId,
+        bytes8 indexed oldDelegate,
+        bytes8 indexed newDelegate
+    );
+    event Withdrawal(
+        uint256 indexed tokenId,
+        address indexed recipient,
+        uint256 amount,
+        uint256 penaltyFee
+    );
     event FeeWithdrawal(address indexed recipient, uint256 amount);
 
     modifier onlyValidToken(uint256 _tokenId) {
@@ -126,7 +141,10 @@ contract SystemStaking is ERC721, Ownable {
         return __types.length;
     }
 
-    function bucketTypes(uint256 _offset, uint256 _size) external view returns (BucketType[] memory types_) {
+    function bucketTypes(
+        uint256 _offset,
+        uint256 _size
+    ) external view returns (BucketType[] memory types_) {
         require(_size > 0 && _offset + _size <= numOfBucketTypes(), "invalid parameters");
         types_ = new BucketType[](_size);
         for (uint256 i = 0; i < _size; i++) {
@@ -140,7 +158,12 @@ contract SystemStaking is ERC721, Ownable {
         return __buckets[_tokenId].unstakedAt == UINT256_MAX;
     }
 
-    function _beforeTokenTransfer(address _from, address _to, uint256 _firstTokenId, uint256 batchSize) internal override {
+    function _beforeTokenTransfer(
+        address _from,
+        address _to,
+        uint256 _firstTokenId,
+        uint256 batchSize
+    ) internal override {
         require(batchSize == 1, "batch transfer is not supported");
         require(_isInStake(_firstTokenId), "cannot transfer unstaked bucket");
         super._beforeTokenTransfer(_from, _to, _firstTokenId, batchSize);
@@ -155,15 +178,17 @@ contract SystemStaking is ERC721, Ownable {
         return bucket.unstakedAt + __types[bucket.typeIndex].duration <= block.number;
     }
 
-    function bucketTypeOf(uint256 _tokenId) external onlyValidToken(_tokenId) view returns (BucketType memory) {
+    function bucketTypeOf(
+        uint256 _tokenId
+    ) external view onlyValidToken(_tokenId) returns (BucketType memory) {
         return __types[__buckets[_tokenId].typeIndex];
     }
 
-    function delegateOf(uint256 _tokenId) external onlyValidToken(_tokenId) view returns (bytes8) {
+    function delegateOf(uint256 _tokenId) external view onlyValidToken(_tokenId) returns (bytes8) {
         return __buckets[_tokenId].delegate;
     }
 
-    function stake(uint256 _duration, bytes8 _delegate) payable external returns (uint256) {
+    function stake(uint256 _duration, bytes8 _delegate) external payable returns (uint256) {
         uint256 index = _bucketTypeIndex(msg.value, _duration);
         require(_isActiveBucketType(index), "not active bucket type");
         _safeMint(msg.sender, __nextTokenId);
@@ -181,24 +206,34 @@ contract SystemStaking is ERC721, Ownable {
         emit Unstaked(_tokenId);
     }
 
-    function withdraw(uint256 _tokenId, address payable _recipient) external onlyTokenOwner(_tokenId) {
+    function withdraw(
+        uint256 _tokenId,
+        address payable _recipient
+    ) external onlyTokenOwner(_tokenId) {
         require(readyToWithdraw(_tokenId), "not ready to withdraw");
         _withdraw(_tokenId, _recipient, 0);
     }
 
-    function _withdraw(uint256 _tokenId, address payable _recipient, uint256 _penaltyRate) internal {
+    function _withdraw(
+        uint256 _tokenId,
+        address payable _recipient,
+        uint256 _penaltyRate
+    ) internal {
         _burn(_tokenId);
         uint256 amount = __types[__buckets[_tokenId].typeIndex].amount;
         uint256 fee = 0;
         if (_penaltyRate != 0) {
-            fee = amount * _penaltyRate / 100;
+            fee = (amount * _penaltyRate) / 100;
             __accumulatedWithdrawFee += fee;
         }
         _recipient.transfer(amount - fee);
         emit Withdrawal(_tokenId, _recipient, amount, fee);
     }
 
-    function changeDelegate(uint256 _tokenId, bytes8 _delegate) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
+    function changeDelegate(
+        uint256 _tokenId,
+        bytes8 _delegate
+    ) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
         require(bucket.delegate != _delegate, "invalid operation");
         __votes[bucket.delegate][bucket.typeIndex]--;
@@ -213,7 +248,9 @@ contract SystemStaking is ERC721, Ownable {
         }
     }
 
-    function votesTo(bytes8[] calldata _delegates) external view returns (uint256[][] memory counts_) {
+    function votesTo(
+        bytes8[] calldata _delegates
+    ) external view returns (uint256[][] memory counts_) {
         counts_ = new uint256[][](_delegates.length);
         uint256 tl = numOfBucketTypes();
         for (uint256 i = 0; i < _delegates.length; i++) {
@@ -226,5 +263,4 @@ contract SystemStaking is ERC721, Ownable {
 
         return counts_;
     }
-
 }

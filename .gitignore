@@ -1,5 +1,7 @@
 node_modules
 artifacts
 cache
+cache_hardhat
 contracts/artifacts
 out
+typechain

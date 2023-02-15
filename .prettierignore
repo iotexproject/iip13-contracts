@@ -1,0 +1,17 @@
+node_modules
+artifacts
+cache
+coverage*
+gasReporterOutput.json
+package.json
+package-lock.json
+img
+.env
+.*
+README.md
+coverage.json
+deployments
+typechain
+/out
+/lib
+/cache_hardhat

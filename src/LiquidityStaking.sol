@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >= 0.8;
+pragma solidity >=0.8;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract LiquidityStaking is ERC20, Ownable, IERC721Receiver {
-
     // TODO: add parameters
-    constructor() ERC20("", "") {
-        
-    }
+    constructor() ERC20("", "") {}
 
     // Need discussion: if a user accidently sent some IOTXs to this contract
     //  these IOTXs will be treated as reward. How could we prevent that?
@@ -50,15 +47,17 @@ contract LiquidityStaking is ERC20, Ownable, IERC721Receiver {
         return true;
     }
 
-    function transferFrom(address _from, address _to, uint256 _amount) public override returns (bool) {
+    function transferFrom(
+        address _from,
+        address _to,
+        uint256 _amount
+    ) public override returns (bool) {
         // TODO: check allowance & claim rewards & update shares
         _transfer(_from, _to, _amount);
         return true;
     }
 
-    function createBuckets() public onlyOwner {
-
-    }
+    function createBuckets() public onlyOwner {}
 
     function withdrawReward(address payable _to) public onlyOwner {
         // TODO: withdraw reward to developers
@@ -77,7 +76,7 @@ contract LiquidityStaking is ERC20, Ownable, IERC721Receiver {
         address, // operator
         address, // from
         uint256, // tokenId
-        bytes calldata// data
+        bytes calldata // data
     ) external pure override returns (bytes4) {
         return this.onERC721Received.selector;
     }
