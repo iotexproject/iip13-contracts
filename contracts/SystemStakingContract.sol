@@ -25,6 +25,7 @@ contract SystemStaking is ERC721, Ownable {
     event Unstaked(uint256 tokenId);
     event DelegateChanged(uint256 tokenId, bytes8 oldDelegate, bytes8 newDelegate);
     event EmergencyWithdrawal(uint256 tokenId, uint256 penaltyRate);
+    event FeeWithdrawal(address indexed recipient, uint256 amount);
 
     modifier onlyValidToken(uint256 _tokenId) {
         require(_exists(_tokenId), "invalid token");
@@ -53,6 +54,8 @@ contract SystemStaking is ERC721, Ownable {
     mapping(uint256 => mapping(uint256 => uint256)) private __typeIndice;
     // emergency withdraw related
     uint256 private __emergencyWithdrawPenaltyRate;
+    // accumulated fee for emergency withdraw
+    uint256 private __accumulatedWithdrawFee;
 
     constructor() ERC721("BucketNFT", "BKT") {
         __nextTokenId = 1;
@@ -69,10 +72,20 @@ contract SystemStaking is ERC721, Ownable {
         return __emergencyWithdrawPenaltyRate;
     }
 
+    function accumulatedWithdrawFee() public view returns (uint256) {
+        return __accumulatedWithdrawFee;
+    }
+
     function emergencyWithdraw(uint256 _tokenId, address payable _recipient) public {
         unstake(_tokenId);
         _withdraw(_tokenId, _recipient, 100 - __emergencyWithdrawPenaltyRate);
         emit EmergencyWithdrawal(_tokenId, __emergencyWithdrawPenaltyRate);
+    }
+
+    function withdrawFee(uint256 _amount, address payable _recipient) external onlyOwner {
+        require(_amount <= __accumulatedWithdrawFee, "invalid amount");
+        _recipient.transfer(_amount);
+        emit FeeWithdrawal(_recipient, _amount);
     }
 
     // bucket type related functions
@@ -175,7 +188,13 @@ contract SystemStaking is ERC721, Ownable {
 
     function _withdraw(uint256 _tokenId, address payable _recipient, uint256 _percent) internal {
         _burn(_tokenId);
-        _recipient.transfer(__types[__buckets[_tokenId].typeIndex].amount * _percent / 100);
+        uint256 amount = __types[__buckets[_tokenId].typeIndex].amount;
+        uint256 fee = 0;
+        if (_percent != 100) {
+            fee = amount * (100 - _percent) / 100;
+            __accumulatedWithdrawFee += fee;
+        }
+        _recipient.transfer(amount - fee);
     }
 
     function changeDelegate(uint256 _tokenId, bytes8 _delegate) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
