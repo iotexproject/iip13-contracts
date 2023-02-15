@@ -1,5 +1,9 @@
 {
   "name": "hardhat-project",
+  "scripts": {
+    "clean": "rimraf ./artifacts ./cache ./out",
+    "compile": "hardhat compile"
+  },
   "devDependencies": {
     "hardhat": "^2.12.7"
   },
