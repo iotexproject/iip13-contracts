@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 struct BucketInfo {
     uint256 typeIndex;
     uint256 unstakedAt;
-    bytes8 delegate;
+    bytes12 delegate;
 }
 
 struct BucketType {
@@ -24,15 +24,15 @@ contract SystemStaking is ERC721, Ownable {
     event BucketTypeDeactivated(uint256 amount, uint256 duration);
     event Staked(
         uint256 indexed tokenId,
-        bytes8 indexed delegate,
+        bytes12 indexed delegate,
         uint256 amount,
         uint256 duration
     );
     event Unstaked(uint256 indexed tokenId);
     event DelegateChanged(
         uint256 indexed tokenId,
-        bytes8 indexed oldDelegate,
-        bytes8 indexed newDelegate
+        bytes12 indexed oldDelegate,
+        bytes12 indexed newDelegate
     );
     event Withdrawal(
         uint256 indexed tokenId,
@@ -62,7 +62,7 @@ contract SystemStaking is ERC721, Ownable {
     // mapping from token ID to bucket
     mapping(uint256 => BucketInfo) private __buckets;
     // delegate name -> bucket type -> count
-    mapping(bytes8 => mapping(uint256 => uint256)) private __votes;
+    mapping(bytes12 => mapping(uint256 => uint256)) private __votes;
     // bucket types
     BucketType[] private __types;
     // amount -> duration -> index
@@ -165,7 +165,8 @@ contract SystemStaking is ERC721, Ownable {
         uint256 batchSize
     ) internal override {
         require(batchSize == 1, "batch transfer is not supported");
-        require(_isInStake(_firstTokenId), "cannot transfer unstaked bucket");
+        // TODO: should discuss staking bucket can't be transfer?
+        // require(_isInStake(_firstTokenId), "cannot transfer unstaked bucket");
         super._beforeTokenTransfer(_from, _to, _firstTokenId, batchSize);
     }
 
@@ -184,11 +185,11 @@ contract SystemStaking is ERC721, Ownable {
         return __types[__buckets[_tokenId].typeIndex];
     }
 
-    function delegateOf(uint256 _tokenId) external view onlyValidToken(_tokenId) returns (bytes8) {
+    function delegateOf(uint256 _tokenId) external view onlyValidToken(_tokenId) returns (bytes12) {
         return __buckets[_tokenId].delegate;
     }
 
-    function stake(uint256 _duration, bytes8 _delegate) external payable returns (uint256) {
+    function stake(uint256 _duration, bytes12 _delegate) external payable returns (uint256) {
         uint256 index = _bucketTypeIndex(msg.value, _duration);
         require(_isActiveBucketType(index), "not active bucket type");
         _safeMint(msg.sender, __nextTokenId);
@@ -232,7 +233,7 @@ contract SystemStaking is ERC721, Ownable {
 
     function changeDelegate(
         uint256 _tokenId,
-        bytes8 _delegate
+        bytes12 _delegate
     ) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
         require(bucket.delegate != _delegate, "invalid operation");
@@ -242,14 +243,14 @@ contract SystemStaking is ERC721, Ownable {
         emit DelegateChanged(_tokenId, bucket.delegate, _delegate);
     }
 
-    function changeDelegates(uint256[] calldata _tokenIds, bytes8 _delegate) external {
+    function changeDelegates(uint256[] calldata _tokenIds, bytes12 _delegate) external {
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             changeDelegate(_tokenIds[i], _delegate);
         }
     }
 
     function votesTo(
-        bytes8[] calldata _delegates
+        bytes12[] calldata _delegates
     ) external view returns (uint256[][] memory counts_) {
         counts_ = new uint256[][](_delegates.length);
         uint256 tl = numOfBucketTypes();
