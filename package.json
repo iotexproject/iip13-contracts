@@ -5,7 +5,7 @@
     "compile": "hardhat compile",
     "test:hardhat": "hardhat test ./test/*.spec.ts --network hardhat",
     "test:foundry": "forge test -vvv",
-    "test": "npm run test:hardhat & npm run test:foundry",
+    "test": "npm run test:hardhat && npm run test:foundry",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write ."
   },
