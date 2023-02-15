@@ -15,16 +15,16 @@ struct BucketType {
     uint256 activatedAt;
 }
 
-uint256 constant UINT256_MAX = type(uint256).max;
-
 contract SystemStaking is ERC721, Ownable {
+    uint256 constant UINT256_MAX = type(uint256).max;
+
     event NewBucketType(uint256 amount, uint256 duration);
     event BucketTypeActivated(uint256 amount, uint256 duration);
     event BucketTypeDeactivated(uint256 amount, uint256 duration);
-    event Staked(uint256 tokenId, uint256 amount, uint256 duration, bytes8 delegate);
-    event Unstaked(uint256 tokenId);
-    event DelegateChanged(uint256 tokenId, bytes8 oldDelegate, bytes8 newDelegate);
-    event EmergencyWithdrawal(uint256 tokenId, uint256 penaltyRate);
+    event Staked(uint256 indexed tokenId, bytes8 indexed delegate, uint256 amount, uint256 duration);
+    event Unstaked(uint256 indexed tokenId);
+    event DelegateChanged(uint256 indexed tokenId, bytes8 indexed oldDelegate, bytes8 indexed newDelegate);
+    event Withdrawal(uint256 indexed tokenId, address indexed recipient, uint256 amount, uint256 penaltyFee);
     event FeeWithdrawal(address indexed recipient, uint256 amount);
 
     modifier onlyValidToken(uint256 _tokenId) {
@@ -52,7 +52,7 @@ contract SystemStaking is ERC721, Ownable {
     BucketType[] private __types;
     // amount -> duration -> index
     mapping(uint256 => mapping(uint256 => uint256)) private __typeIndice;
-    // emergency withdraw related
+    // emergency withdraw penalty rate
     uint256 private __emergencyWithdrawPenaltyRate;
     // accumulated fee for emergency withdraw
     uint256 private __accumulatedWithdrawFee;
@@ -63,23 +63,22 @@ contract SystemStaking is ERC721, Ownable {
     }
 
     // emergency withdraw functions
-    function setEmergencyWithdrawPenaltyRate(uint256 _rate) public onlyOwner {
+    function setEmergencyWithdrawPenaltyRate(uint256 _rate) external onlyOwner {
         require(_rate <= 100, "");
         __emergencyWithdrawPenaltyRate = _rate;
     }
 
-    function emergencyWithdrawPenaltyRate() public view returns (uint256) {
+    function emergencyWithdrawPenaltyRate() external view returns (uint256) {
         return __emergencyWithdrawPenaltyRate;
     }
 
-    function accumulatedWithdrawFee() public view returns (uint256) {
+    function accumulatedWithdrawFee() external view returns (uint256) {
         return __accumulatedWithdrawFee;
     }
 
-    function emergencyWithdraw(uint256 _tokenId, address payable _recipient) public {
+    function emergencyWithdraw(uint256 _tokenId, address payable _recipient) external {
         unstake(_tokenId);
-        _withdraw(_tokenId, _recipient, 100 - __emergencyWithdrawPenaltyRate);
-        emit EmergencyWithdrawal(_tokenId, __emergencyWithdrawPenaltyRate);
+        _withdraw(_tokenId, _recipient, __emergencyWithdrawPenaltyRate);
     }
 
     function withdrawFee(uint256 _amount, address payable _recipient) external onlyOwner {
@@ -92,10 +91,11 @@ contract SystemStaking is ERC721, Ownable {
     function _bucketTypeIndex(uint256 _amount, uint256 _duration) internal view returns (uint256) {
         uint256 index = __typeIndice[_amount][_duration];
         require(index > 0, "invalid bucket type");
+
         return index - 1;
     }
 
-    function addBucketType(uint256 _amount, uint256 _duration) public onlyOwner {
+    function addBucketType(uint256 _amount, uint256 _duration) external onlyOwner {
         require(_amount != 0, "amount is invalid");
         require(__typeIndice[_amount][_duration] == 0, "duplicate bucket type");
         __types.push(BucketType(_amount, _duration, block.number));
@@ -104,12 +104,12 @@ contract SystemStaking is ERC721, Ownable {
         emit NewBucketType(_amount, _duration);
     }
 
-    function deactivateBucketType(uint256 _amount, uint256 _duration) public onlyOwner {
+    function deactivateBucketType(uint256 _amount, uint256 _duration) external onlyOwner {
         __types[_bucketTypeIndex(_amount, _duration)].activatedAt = UINT256_MAX;
         emit BucketTypeDeactivated(_amount, _duration);
     }
 
-    function activateBucketType(uint256 _amount, uint256 _duration) public onlyOwner {
+    function activateBucketType(uint256 _amount, uint256 _duration) external onlyOwner {
         __types[_bucketTypeIndex(_amount, _duration)].activatedAt = block.number;
         emit BucketTypeActivated(_amount, _duration);
     }
@@ -169,7 +169,7 @@ contract SystemStaking is ERC721, Ownable {
         _safeMint(msg.sender, __nextTokenId);
         __buckets[__nextTokenId] = BucketInfo(index, UINT256_MAX, _delegate);
         __votes[_delegate][index]++;
-        emit Staked(__nextTokenId, msg.value, _duration, _delegate);
+        emit Staked(__nextTokenId, _delegate, msg.value, _duration);
 
         return __nextTokenId++;
     }
@@ -183,31 +183,31 @@ contract SystemStaking is ERC721, Ownable {
 
     function withdraw(uint256 _tokenId, address payable _recipient) external onlyTokenOwner(_tokenId) {
         require(readyToWithdraw(_tokenId), "not ready to withdraw");
-        _withdraw(_tokenId, _recipient, 100);
+        _withdraw(_tokenId, _recipient, 0);
     }
 
-    function _withdraw(uint256 _tokenId, address payable _recipient, uint256 _percent) internal {
+    function _withdraw(uint256 _tokenId, address payable _recipient, uint256 _penaltyRate) internal {
         _burn(_tokenId);
         uint256 amount = __types[__buckets[_tokenId].typeIndex].amount;
         uint256 fee = 0;
-        if (_percent != 100) {
-            fee = amount * (100 - _percent) / 100;
+        if (_penaltyRate != 0) {
+            fee = amount * _penaltyRate / 100;
             __accumulatedWithdrawFee += fee;
         }
         _recipient.transfer(amount - fee);
+        emit Withdrawal(_tokenId, _recipient, amount, fee);
     }
 
     function changeDelegate(uint256 _tokenId, bytes8 _delegate) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
-        if (bucket.delegate != _delegate) {
-            __votes[bucket.delegate][bucket.typeIndex]--;
-            __votes[_delegate][bucket.typeIndex]++;
-            __buckets[_tokenId].delegate = _delegate;
-            emit DelegateChanged(_tokenId, bucket.delegate, _delegate);
-        }
+        require(bucket.delegate != _delegate, "invalid operation");
+        __votes[bucket.delegate][bucket.typeIndex]--;
+        __votes[_delegate][bucket.typeIndex]++;
+        __buckets[_tokenId].delegate = _delegate;
+        emit DelegateChanged(_tokenId, bucket.delegate, _delegate);
     }
 
-    function changeDelegates(uint256[] calldata _tokenIds, bytes8 _delegate) public {
+    function changeDelegates(uint256[] calldata _tokenIds, bytes8 _delegate) external {
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             changeDelegate(_tokenIds[i], _delegate);
         }
