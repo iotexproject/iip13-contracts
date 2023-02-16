@@ -165,8 +165,7 @@ contract SystemStaking is ERC721, Ownable {
         uint256 batchSize
     ) internal override {
         require(batchSize == 1, "batch transfer is not supported");
-        // TODO: should discuss staking bucket can't be transfer?
-        // require(_isInStake(_firstTokenId), "cannot transfer unstaked bucket");
+        require(_to == address(0) || _isInStake(_firstTokenId), "cannot transfer unstaked bucket");
         super._beforeTokenTransfer(_from, _to, _firstTokenId, batchSize);
     }
 
@@ -176,7 +175,7 @@ contract SystemStaking is ERC721, Ownable {
         }
         BucketInfo memory bucket = __buckets[_tokenId];
 
-        return bucket.unstakedAt + __types[bucket.typeIndex].duration <= block.number;
+        return bucket.unstakedAt + __types[bucket.typeIndex].duration <= block.timestamp;
     }
 
     function bucketTypeOf(
@@ -192,9 +191,9 @@ contract SystemStaking is ERC721, Ownable {
     function stake(uint256 _duration, bytes12 _delegate) external payable returns (uint256) {
         uint256 index = _bucketTypeIndex(msg.value, _duration);
         require(_isActiveBucketType(index), "not active bucket type");
-        _safeMint(msg.sender, __nextTokenId);
         __buckets[__nextTokenId] = BucketInfo(index, UINT256_MAX, _delegate);
         __votes[_delegate][index]++;
+        _safeMint(msg.sender, __nextTokenId);
         emit Staked(__nextTokenId, _delegate, msg.value, _duration);
 
         return __nextTokenId++;
@@ -202,7 +201,7 @@ contract SystemStaking is ERC721, Ownable {
 
     function unstake(uint256 _tokenId) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo storage bucket = __buckets[_tokenId];
-        bucket.unstakedAt = block.number;
+        bucket.unstakedAt = block.timestamp;
         __votes[bucket.delegate][bucket.typeIndex]--;
         emit Unstaked(_tokenId);
     }
