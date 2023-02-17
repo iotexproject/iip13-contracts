@@ -256,7 +256,7 @@ contract SystemStaking is ERC721, Ownable {
         for (uint256 i = 0; i < _delegates.length; i++) {
             counts_[i] = new uint256[](tl);
             mapping(uint256 => uint256) storage votes = __votes[_delegates[i]];
-            for (uint256 j = 0; i < tl; i++) {
+            for (uint256 j = 0; j < tl; j++) {
                 counts_[i][j] = votes[i];
             }
         }

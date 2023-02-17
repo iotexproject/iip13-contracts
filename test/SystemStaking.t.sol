@@ -13,6 +13,9 @@ contract SystemStakingTest is Test {
     address internal alice;
 
     function setUp() public {
+        owner = vm.addr(0x1);
+        alice = vm.addr(0x2);
+
         vm.prank(owner);
         system = new SystemStaking();
     }
