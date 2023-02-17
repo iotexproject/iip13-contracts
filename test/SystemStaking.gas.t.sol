@@ -35,25 +35,27 @@ contract SystemStakingGasTest is Test {
 
         vm.startPrank(alice);
         vm.deal(alice, 10000 ether);
-        for (uint i = 0; i < 1000; i++) {
+        for (uint24 i = 0; i < 1000; i++) {
+            bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate_", i)));
             for (uint j = 1; j < 11; j++) {
-                system.stake{value: 1 ether}(j * 1 days, bytes12(bytes(abi.encodePacked("delegate_", i))));
+                system.stake{value: 1 ether}(j * 1 days, delegate);
             }
         }
     }
 
     function test_gas_10BucketType_1000Delegates() public {
         bytes12[] memory delegates = new bytes12[](1000);
-        for (uint i = 0; i < 1000; i++) {
-            delegates[i] = bytes12(bytes12(bytes(abi.encodePacked("delegate_", i))));
+        for (uint24 i = 0; i < 1000; i++) {
+            delegates[i] = bytes12(bytes(abi.encodePacked("delegate_", i)));
         }
         uint256[][] memory votes = system.votesTo(delegates);
 
         assertEq(votes.length, 1000);
-        assertEq(votes[0].length, 10);
-        assertEq(votes[100].length, 10);
-        console.log(votes[0][0]);
-        //assertEq(votes[0][0], 1 ether);
-        //assertEq(votes[100][9], 1 ether);
+        for (uint i = 0; i < votes.length; i++) {
+            assertEq(votes[i].length, 10);
+            for (uint j = 0; j < votes[i].length; j++) {
+                assertEq(votes[i][j], 1);
+            }
+        }
     }
 }

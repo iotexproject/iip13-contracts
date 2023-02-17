@@ -14,7 +14,9 @@ contract SystemStakingTest is Test {
 
     function setUp() public {
         owner = vm.addr(0x1);
+        vm.deal(owner, 10000 ether);
         alice = vm.addr(0x2);
+        vm.deal(alice, 10000 ether);
 
         vm.prank(owner);
         system = new SystemStaking();
