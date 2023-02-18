@@ -3,6 +3,7 @@ pragma solidity >=0.8;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
 struct BucketInfo {
     uint256 typeIndex;
@@ -16,7 +17,7 @@ struct BucketType {
     uint256 activatedAt;
 }
 
-contract SystemStaking is ERC721, Ownable {
+contract SystemStaking is ERC721, Ownable, Pausable {
     uint256 constant UINT256_MAX = type(uint256).max;
 
     event NewBucketType(uint256 amount, uint256 duration);
@@ -75,6 +76,14 @@ contract SystemStaking is ERC721, Ownable {
     constructor() ERC721("BucketNFT", "BKT") {
         __nextTokenId = 1;
         __emergencyWithdrawPenaltyRate = 100;
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     // emergency withdraw functions
@@ -190,7 +199,7 @@ contract SystemStaking is ERC721, Ownable {
         return __buckets[_tokenId].delegate;
     }
 
-    function stake(uint256 _duration, bytes12 _delegate) external payable returns (uint256) {
+    function stake(uint256 _duration, bytes12 _delegate) external payable whenNotPaused returns (uint256) {
         uint256 index = _bucketTypeIndex(msg.value, _duration);
         require(_isActiveBucketType(index), "not active bucket type");
         __buckets[__nextTokenId] = BucketInfo(index, UINT256_MAX, _delegate);
@@ -208,14 +217,14 @@ contract SystemStaking is ERC721, Ownable {
         emit Unstaked(_tokenId);
     }
 
-    function unstake(uint256 _tokenId) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
+    function unstake(uint256 _tokenId) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
         _unstake(_tokenId);
     }
 
     function withdraw(
         uint256 _tokenId,
         address payable _recipient
-    ) external onlyTokenOwner(_tokenId) {
+    ) external onlyTokenOwner(_tokenId) whenNotPaused {
         require(readyToWithdraw(_tokenId), "not ready to withdraw");
         _withdraw(_tokenId, _recipient, 0);
     }
@@ -236,10 +245,10 @@ contract SystemStaking is ERC721, Ownable {
         emit Withdrawal(_tokenId, _recipient, amount, fee);
     }
 
-    function changeDelegate(
+    function _changeDelegate(
         uint256 _tokenId,
         bytes12 _delegate
-    ) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
+    ) internal onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
         require(bucket.delegate != _delegate, "invalid operation");
         __votes[bucket.delegate][bucket.typeIndex]--;
@@ -248,9 +257,13 @@ contract SystemStaking is ERC721, Ownable {
         emit DelegateChanged(_tokenId, bucket.delegate, _delegate);
     }
 
-    function changeDelegates(uint256[] calldata _tokenIds, bytes12 _delegate) external {
+    function changeDelegate(uint256 _tokenId, bytes12 _delegate) external whenNotPaused {
+        _changeDelegate(_tokenId, _delegate);
+    }
+
+    function changeDelegates(uint256[] calldata _tokenIds, bytes12 _delegate) external whenNotPaused {
         for (uint256 i = 0; i < _tokenIds.length; i++) {
-            changeDelegate(_tokenIds[i], _delegate);
+            _changeDelegate(_tokenIds[i], _delegate);
         }
     }
 
