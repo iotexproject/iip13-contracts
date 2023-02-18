@@ -91,8 +91,10 @@ contract SystemStaking is ERC721, Ownable {
         return __accumulatedWithdrawFee;
     }
 
-    function emergencyWithdraw(uint256 _tokenId, address payable _recipient) external {
-        unstake(_tokenId);
+    function emergencyWithdraw(uint256 _tokenId, address payable _recipient) external onlyValidToken(_tokenId) onlyTokenOwner(_tokenId) {
+        if (_isInStake(_tokenId)) {
+            _unstake(_tokenId);
+        }
         _withdraw(_tokenId, _recipient, __emergencyWithdrawPenaltyRate);
     }
 
@@ -199,11 +201,15 @@ contract SystemStaking is ERC721, Ownable {
         return __nextTokenId++;
     }
 
-    function unstake(uint256 _tokenId) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
+    function _unstake(uint256 _tokenId) internal {
         BucketInfo storage bucket = __buckets[_tokenId];
         bucket.unstakedAt = block.timestamp;
         __votes[bucket.delegate][bucket.typeIndex]--;
         emit Unstaked(_tokenId);
+    }
+
+    function unstake(uint256 _tokenId) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
+        _unstake(_tokenId);
     }
 
     function withdraw(
