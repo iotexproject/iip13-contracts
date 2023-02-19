@@ -83,7 +83,7 @@ describe("SystemStaking", () => {
         it("should succeed emergency withdraw", async () => {
             await system.connect(owner).setEmergencyWithdrawPenaltyRate(90)
 
-            const tokenId = await createBucket(
+            let tokenId = await createBucket(
                 system,
                 staker,
                 ONE_DAY,
@@ -91,6 +91,19 @@ describe("SystemStaking", () => {
                 ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
             )
 
+            await expect(
+                system.connect(staker).emergencyWithdraw(tokenId, alice.address)
+            ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
+            await expect(system.ownerOf(tokenId)).to.be.revertedWith("ERC721: invalid token ID")
+
+            tokenId = await createBucket(
+                system,
+                staker,
+                ONE_DAY,
+                ethers.utils.parseEther("1"),
+                ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
+            )
+            await system.connect(staker).unstake(tokenId)
             await expect(
                 system.connect(staker).emergencyWithdraw(tokenId, alice.address)
             ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))

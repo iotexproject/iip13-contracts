@@ -18,7 +18,7 @@ struct BucketType {
 }
 
 contract SystemStaking is ERC721, Ownable, Pausable {
-    uint256 constant UINT256_MAX = type(uint256).max;
+    uint256 public constant UINT256_MAX = type(uint256).max;
 
     event NewBucketType(uint256 amount, uint256 duration);
     event BucketTypeActivated(uint256 amount, uint256 duration);
@@ -88,7 +88,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     // emergency withdraw functions
     function setEmergencyWithdrawPenaltyRate(uint256 _rate) external onlyOwner {
-        require(_rate <= 100, "");
+        require(_rate <= 100, "invaid penalty rate");
         __emergencyWithdrawPenaltyRate = _rate;
     }
 

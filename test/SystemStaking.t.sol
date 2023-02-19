@@ -44,6 +44,7 @@ contract SystemStakingTest is Test {
 
         vm.expectRevert();
         vm.prank(owner);
+        vm.expectRevert("invalid penalty rate");
         system.setEmergencyWithdrawPenaltyRate(1000);
 
         assertEq(system.emergencyWithdrawPenaltyRate(), 100);
