@@ -84,4 +84,36 @@ contract SystemStakingTest is Test {
 
         assertEq(system.numOfBucketTypes(), 1);
     }
+
+    function testStakeMultiple() public {
+        vm.startPrank(owner);
+        system.addBucketType(1 ether, 1 days);
+        system.addBucketType(2 ether, 1 days);
+        system.addBucketType(3 ether, 1 days);
+        vm.stopPrank();
+
+        vm.deal(alice, 100 ether);
+        vm.startPrank(alice);
+
+        bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate")));
+
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = 1 ether;
+        amounts[1] = 2 ether;
+        amounts[2] = 3 ether;
+
+        uint256[] memory durations = new uint256[](3);
+        durations[0] = 1 days;
+        durations[1] = 1 days;
+        durations[2] = 1 days;
+
+        bytes12[] memory delegates = new bytes12[](3);
+        delegates[0] = delegate;
+        delegates[1] = delegate;
+        delegates[2] = delegate;
+
+        system.stake{value: 6 ether}(amounts, durations, delegates);
+
+        system.stake{value: 1 ether}(1 days, delegate);
+    }
 }

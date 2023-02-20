@@ -192,11 +192,18 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return __buckets[_tokenId].delegate;
     }
 
-    function stake(uint256 _duration, bytes12 _delegate) external payable whenNotPaused returns (uint256) {
+    function stake(
+        uint256 _duration,
+        bytes12 _delegate
+    ) external payable whenNotPaused returns (uint256) {
         return _stake(msg.value, _duration, _delegate);
     }
 
-    function _stake(uint256 _amount, uint256 _duration, bytes12 _delegate) internal returns (uint256) {
+    function _stake(
+        uint256 _amount,
+        uint256 _duration,
+        bytes12 _delegate
+    ) internal returns (uint256) {
         uint256 index = _bucketTypeIndex(_amount, _duration);
         require(_isActiveBucketType(index), "not active bucket type");
         __buckets[__nextTokenId] = BucketInfo(index, UINT256_MAX, _delegate);
@@ -216,17 +223,17 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             _amounts.length == _durations.length && _amounts.length == _delegates.length,
             "invalid parameters"
         );
-        uint256 total = 0;
+        uint256 total = msg.value;
         // TODO: 1. which is more efficient, one for loop or two for loops
         //       2. how to efficiently prevent lookup bucket types of the same value
-        for (uint256 i = 0; i < _amounts.length; i++) {
-            total += _amounts[i];
-        }
-        require(total == msg.value, "invalid value");
         tokenIds_ = new uint256[](_amounts.length);
         for (uint256 i = 0; i < _amounts.length; i++) {
+            unchecked {
+                total -= _amounts[i];
+            }
             tokenIds_[i] = _stake(_amounts[i], _durations[i], _delegates[i]);
         }
+        require(total == 0, "invalid value");
 
         return tokenIds_;
     }
@@ -238,7 +245,9 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         emit Unstaked(_tokenId);
     }
 
-    function unstake(uint256 _tokenId) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
+    function unstake(
+        uint256 _tokenId
+    ) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
         _unstake(_tokenId);
     }
 
@@ -266,7 +275,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _withdraw(_tokenId, _recipient, 0);
     }
 
-    function emergencyWithdraw(uint256 _tokenId, address payable _recipient) external onlyValidToken(_tokenId) onlyTokenOwner(_tokenId) {
+    function emergencyWithdraw(
+        uint256 _tokenId,
+        address payable _recipient
+    ) external onlyValidToken(_tokenId) onlyTokenOwner(_tokenId) {
         if (_isInStake(_tokenId)) {
             _unstake(_tokenId);
         }
@@ -289,7 +301,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _changeDelegate(_tokenId, _delegate);
     }
 
-    function changeDelegates(uint256[] calldata _tokenIds, bytes12 _delegate) external whenNotPaused {
+    function changeDelegates(
+        uint256[] calldata _tokenIds,
+        bytes12 _delegate
+    ) external whenNotPaused {
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             _changeDelegate(_tokenIds[i], _delegate);
         }

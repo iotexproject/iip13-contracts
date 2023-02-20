@@ -3,7 +3,7 @@ import { expect } from "chai"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { BigNumber, BigNumberish, BytesLike } from "ethers"
 import { SystemStaking } from "../typechain"
-import { increase, duration, latest } from "./utils"
+import { increase, duration } from "./utils"
 
 const createBucket = async (
     system: SystemStaking,
@@ -12,7 +12,7 @@ const createBucket = async (
     amount: BigNumberish,
     delegate: BytesLike
 ): Promise<BigNumber> => {
-    const tx = await system.connect(staker).stake(duration, delegate, {
+    const tx = await system.connect(staker)["stake(uint256,bytes12)"](duration, delegate, {
         value: amount,
     })
     const receipt = await tx.wait()
@@ -48,7 +48,7 @@ describe("SystemStaking", () => {
             await expect(
                 system
                     .connect(staker)
-                    .stake(
+                    ["stake(uint256,bytes12)"](
                         ONE_DAY + 1,
                         ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012")),
                         {
@@ -60,7 +60,7 @@ describe("SystemStaking", () => {
             await expect(
                 system
                     .connect(staker)
-                    .stake(
+                    ["stake(uint256,bytes12)"](
                         ONE_DAY + 1,
                         ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012")),
                         {
@@ -73,9 +73,13 @@ describe("SystemStaking", () => {
         it("should succeed for with correct data", async () => {
             await system
                 .connect(staker)
-                .stake(ONE_DAY, ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012")), {
-                    value: ethers.utils.parseEther("1"),
-                })
+                ["stake(uint256,bytes12)"](
+                    ONE_DAY,
+                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012")),
+                    {
+                        value: ethers.utils.parseEther("1"),
+                    }
+                )
 
             expect(staker.address).to.equal(await system.ownerOf(1))
         })
