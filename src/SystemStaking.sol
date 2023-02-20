@@ -100,13 +100,6 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return __accumulatedWithdrawFee;
     }
 
-    function emergencyWithdraw(uint256 _tokenId, address payable _recipient) external onlyValidToken(_tokenId) onlyTokenOwner(_tokenId) {
-        if (_isInStake(_tokenId)) {
-            _unstake(_tokenId);
-        }
-        _withdraw(_tokenId, _recipient, __emergencyWithdrawPenaltyRate);
-    }
-
     function withdrawFee(uint256 _amount, address payable _recipient) external onlyOwner {
         require(_amount <= __accumulatedWithdrawFee, "invalid amount");
         _recipient.transfer(_amount);
@@ -200,14 +193,42 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function stake(uint256 _duration, bytes12 _delegate) external payable whenNotPaused returns (uint256) {
-        uint256 index = _bucketTypeIndex(msg.value, _duration);
+        return _stake(msg.value, _duration, _delegate);
+    }
+
+    function _stake(uint256 _amount, uint256 _duration, bytes12 _delegate) internal returns (uint256) {
+        uint256 index = _bucketTypeIndex(_amount, _duration);
         require(_isActiveBucketType(index), "not active bucket type");
         __buckets[__nextTokenId] = BucketInfo(index, UINT256_MAX, _delegate);
         __votes[_delegate][index]++;
         _safeMint(msg.sender, __nextTokenId);
-        emit Staked(__nextTokenId, _delegate, msg.value, _duration);
+        emit Staked(__nextTokenId, _delegate, _amount, _duration);
 
         return __nextTokenId++;
+    }
+
+    function stake(
+        uint256[] memory _amounts,
+        uint256[] memory _durations,
+        bytes12[] memory _delegates
+    ) external payable whenNotPaused returns (uint256[] memory tokenIds_) {
+        require(
+            _amounts.length == _durations.length && _amounts.length == _delegates.length,
+            "invalid parameters"
+        );
+        uint256 total = 0;
+        // TODO: 1. which is more efficient, one for loop or two for loops
+        //       2. how to efficiently prevent lookup bucket types of the same value
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            total += _amounts[i];
+        }
+        require(total == msg.value, "invalid value");
+        tokenIds_ = new uint256[](_amounts.length);
+        for (uint256 i = 0; i < _amounts.length; i++) {
+            tokenIds_[i] = _stake(_amounts[i], _durations[i], _delegates[i]);
+        }
+
+        return tokenIds_;
     }
 
     function _unstake(uint256 _tokenId) internal {
@@ -219,14 +240,6 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function unstake(uint256 _tokenId) public onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
         _unstake(_tokenId);
-    }
-
-    function withdraw(
-        uint256 _tokenId,
-        address payable _recipient
-    ) external onlyTokenOwner(_tokenId) whenNotPaused {
-        require(readyToWithdraw(_tokenId), "not ready to withdraw");
-        _withdraw(_tokenId, _recipient, 0);
     }
 
     function _withdraw(
@@ -243,6 +256,21 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         }
         _recipient.transfer(amount - fee);
         emit Withdrawal(_tokenId, _recipient, amount, fee);
+    }
+
+    function withdraw(
+        uint256 _tokenId,
+        address payable _recipient
+    ) external onlyTokenOwner(_tokenId) whenNotPaused {
+        require(readyToWithdraw(_tokenId), "not ready to withdraw");
+        _withdraw(_tokenId, _recipient, 0);
+    }
+
+    function emergencyWithdraw(uint256 _tokenId, address payable _recipient) external onlyValidToken(_tokenId) onlyTokenOwner(_tokenId) {
+        if (_isInStake(_tokenId)) {
+            _unstake(_tokenId);
+        }
+        _withdraw(_tokenId, _recipient, __emergencyWithdrawPenaltyRate);
     }
 
     function _changeDelegate(
