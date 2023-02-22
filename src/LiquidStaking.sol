@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LiquidityStaking is ERC20, Ownable, IERC721Receiver {
+contract LiquidStaking is ERC20, Ownable, IERC721Receiver {
     // TODO: add parameters
     constructor() ERC20("", "") {}
 
