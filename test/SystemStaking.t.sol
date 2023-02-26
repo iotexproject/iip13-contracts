@@ -11,12 +11,15 @@ contract SystemStakingTest is Test {
 
     address internal owner;
     address internal alice;
+    address internal bob;
 
     function setUp() public {
         owner = vm.addr(0x1);
         vm.deal(owner, 10000 ether);
         alice = vm.addr(0x2);
         vm.deal(alice, 10000 ether);
+        bob = vm.addr(0x3);
+        vm.deal(bob, 10000 ether);
 
         vm.prank(owner);
         system = new SystemStaking();
@@ -114,6 +117,70 @@ contract SystemStakingTest is Test {
 
         system.stake{value: 6 ether}(amounts, durations, delegates);
 
+        system.stake{value: 1 ether}(1 days, delegate);
+    }
+
+    function testStakeFullflow() public {
+        vm.startPrank(owner);
+        system.addBucketType(1 ether, 1 days);
+        vm.stopPrank();
+
+        vm.deal(alice, 100 ether);
+        vm.startPrank(alice);
+
+        bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate")));
+
+        uint256 tokenId = system.stake{value: 1 ether}(1 days, delegate);
+        assertEq(tokenId, 1);
+        assertEq(alice, system.ownerOf(tokenId));
+
+        vm.expectRevert("not ready to withdraw");
+        system.withdraw(tokenId, payable(alice));
+
+        system.transferFrom(alice, bob, tokenId);
+        assertEq(bob, system.ownerOf(tokenId));
+
+        vm.stopPrank();
+
+        vm.expectRevert("not owner");
+        system.withdraw(tokenId, payable(alice));
+
+        vm.expectRevert("not owner");
+        system.unstake(tokenId);
+
+        vm.prank(bob);
+        system.approve(alice, tokenId);
+
+        vm.startPrank(alice);
+        system.transferFrom(bob, alice, tokenId);
+        system.unstake(tokenId);
+
+        vm.expectRevert("token not in stake");
+        system.unstake(tokenId);
+
+        vm.expectRevert("cannot transfer unstaked bucket");
+        system.transferFrom(alice, bob, tokenId);
+    }
+
+    function testDeactivateBucketType() public {
+        vm.prank(owner);
+        system.addBucketType(1 ether, 1 days);
+        assertEq(system.isActiveBucketType(1 ether, 1 days), true);
+
+        bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate")));
+
+        vm.prank(alice);
+        uint256 tokenId = system.stake{value: 1 ether}(1 days, delegate);
+        assertEq(tokenId, 1);
+        assertEq(alice, system.ownerOf(tokenId));
+
+        vm.prank(owner);
+        system.deactivateBucketType(1 ether, 1 days);
+        assertEq(system.numOfBucketTypes(), 1);
+        assertEq(system.isActiveBucketType(1 ether, 1 days), false);
+
+        vm.prank(alice);
+        vm.expectRevert("not active bucket type");
         system.stake{value: 1 ether}(1 days, delegate);
     }
 }
