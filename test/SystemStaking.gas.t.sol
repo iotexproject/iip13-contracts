@@ -80,36 +80,40 @@ contract SystemStakingGasTest is Test {
     function testStakeInBatchGas() public {
         vm.deal(alice, 10000 ether);
         for (uint j = 1; j < 11; j++) {
-            uint256[] memory tokenIds = system.stake{value: 100 ether}(1 ether, j * 1 days, delegates100);
+            uint256[] memory tokenIds = system.stake{value: 100 ether}(
+                1 ether,
+                j * 1 days,
+                delegates100
+            );
             assertEq(tokenIds.length, 100);
         }
     }
 
-    function testGasFor10Delegates() public {
+    function testGasFor10Delegates() public view {
         system.votesTo(delegates10);
     }
 
-    function testGasFor20Delegates() public {
+    function testGasFor20Delegates() public view {
         system.votesTo(delegates20);
     }
 
-    function testGasFor50Delegates() public {
+    function testGasFor50Delegates() public view {
         system.votesTo(delegates50);
     }
 
-    function testGasFor100Delegates() public {
+    function testGasFor100Delegates() public view {
         system.votesTo(delegates100);
     }
 
-    function testGasFor200Delegates() public {
+    function testGasFor200Delegates() public view {
         system.votesTo(delegates200);
     }
 
-    function testGasFor500Delegates() public {
+    function testGasFor500Delegates() public view {
         system.votesTo(delegates500);
     }
 
-    function testGasFor1000Delegates() public {
+    function testGasFor1000Delegates() public view {
         system.votesTo(delegates1000);
     }
 
