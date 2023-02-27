@@ -192,22 +192,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return __buckets[_tokenId].delegate;
     }
 
-    function stake(
-        uint256 _duration,
-        bytes12 _delegate
-    ) external payable whenNotPaused returns (uint256) {
-        return _stake(msg.value, _duration, _delegate);
-    }
-
     function _stake(
+        uint256 _index,
         uint256 _amount,
         uint256 _duration,
         bytes12 _delegate
     ) internal returns (uint256) {
-        uint256 index = _bucketTypeIndex(_amount, _duration);
-        require(_isActiveBucketType(index), "not active bucket type");
-        __buckets[__nextTokenId] = BucketInfo(index, UINT256_MAX, _delegate);
-        __votes[_delegate][index]++;
+        __buckets[__nextTokenId] = BucketInfo(_index, UINT256_MAX, _delegate);
+        __votes[_delegate][_index]++;
         _safeMint(msg.sender, __nextTokenId);
         emit Staked(__nextTokenId, _delegate, _amount, _duration);
 
@@ -215,25 +207,28 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function stake(
-        uint256[] memory _amounts,
-        uint256[] memory _durations,
+        uint256 _duration,
+        bytes12 _delegate
+    ) external payable whenNotPaused returns (uint256) {
+        uint256 index = _bucketTypeIndex(msg.value, _duration);
+        require(_isActiveBucketType(index), "not active bucket type");
+
+        return _stake(index, msg.value, _duration, _delegate);
+    }
+
+    function stake(
+        uint256 _amount,
+        uint256 _duration,
         bytes12[] memory _delegates
     ) external payable whenNotPaused returns (uint256[] memory tokenIds_) {
-        require(
-            _amounts.length == _durations.length && _amounts.length == _delegates.length,
-            "invalid parameters"
-        );
-        uint256 total = msg.value;
-        // TODO: 1. which is more efficient, one for loop or two for loops
-        //       2. how to efficiently prevent lookup bucket types of the same value
-        tokenIds_ = new uint256[](_amounts.length);
-        for (uint256 i = 0; i < _amounts.length; i++) {
-            unchecked {
-                total -= _amounts[i];
-            }
-            tokenIds_[i] = _stake(_amounts[i], _durations[i], _delegates[i]);
+        require(_amount * _delegates.length == msg.value, "invalid parameters");
+        uint256 index = _bucketTypeIndex(_amount, _duration);
+        require(_isActiveBucketType(index), "not active bucket type");
+
+        tokenIds_ = new uint256[](_delegates.length);
+        for (uint256 i = 0; i < _delegates.length; i++) {
+            tokenIds_[i] = _stake(index, _amount, _duration, _delegates[i]);
         }
-        require(total == 0, "invalid value");
 
         return tokenIds_;
     }
