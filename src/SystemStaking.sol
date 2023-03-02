@@ -30,6 +30,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 duration
     );
     event Unstaked(uint256 indexed tokenId);
+    event DurationExtended(uint256 indexed tokenId, uint256 duration);
+    event AmountIncreased(uint256 indexed tokenId, uint256 amount);
     event DelegateChanged(
         uint256 indexed tokenId,
         bytes12 indexed oldDelegate,
@@ -49,7 +51,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     modifier onlyStakedToken(uint256 _tokenId) {
-        require(_exists(_tokenId) && _isInStake(_tokenId), "token not in stake");
+        require(_exists(_tokenId) && _isInStake(_tokenId), "not a staked token");
         _;
     }
 
@@ -295,6 +297,42 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             _unstake(_tokenId);
         }
         _withdraw(_tokenId, _recipient, __emergencyWithdrawPenaltyRate);
+    }
+
+    function _updateBucketInfo(
+        uint256 _tokenId,
+        uint256 _amount,
+        uint256 _duration,
+        bytes12 _delegate,
+        uint256 _oldBucketTypeIndex
+    ) internal onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
+        uint256 newTypeIndex = _bucketTypeIndex(_amount, _duration);
+        require(_isActiveBucketType(newTypeIndex), "inactive bucket type");
+        __votes[_delegate][_oldBucketTypeIndex]--;
+        __votes[_delegate][newTypeIndex]++;
+        __buckets[_tokenId].typeIndex = newTypeIndex;
+    }
+
+    function extendDuration(
+        uint256 _tokenId,
+        uint256 _newDuration
+    ) external whenNotPaused {
+        BucketInfo memory bucket = __buckets[_tokenId];
+        BucketType memory bucketType = __types[bucket.typeIndex];
+        require(_newDuration > bucketType.duration, "invalid duration");
+        _updateBucketInfo(_tokenId, bucketType.amount, _newDuration, bucket.delegate, bucket.typeIndex);
+        emit DurationExtended(_tokenId, _newDuration);
+    }
+
+    function increaseAmount(
+        uint256 _tokenId,
+        uint256 _newAmount
+    ) external payable whenNotPaused {
+        BucketInfo memory bucket = __buckets[_tokenId];
+        BucketType memory bucketType = __types[bucket.typeIndex];
+        require(msg.value + bucketType.amount == _newAmount, "invalid amount");
+        _updateBucketInfo(_tokenId, _newAmount, bucketType.duration, bucket.delegate, bucket.typeIndex);
+        emit AmountIncreased(_tokenId, _newAmount);
     }
 
     function _changeDelegate(

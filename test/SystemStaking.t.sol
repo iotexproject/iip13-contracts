@@ -147,7 +147,7 @@ contract SystemStakingTest is Test {
         system.transferFrom(bob, alice, tokenId);
         system.unstake(tokenId);
 
-        vm.expectRevert("token not in stake");
+        vm.expectRevert("not a staked token");
         system.unstake(tokenId);
 
         vm.expectRevert("cannot transfer unstaked bucket");
