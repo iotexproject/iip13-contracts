@@ -3,7 +3,7 @@ import { expect } from "chai"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { BigNumber, BigNumberish, BytesLike } from "ethers"
 import { SystemStaking } from "../typechain"
-import { increase, duration } from "./utils"
+import { advanceBy, duration } from "./utils"
 
 const createBucket = async (
     system: SystemStaking,
@@ -26,7 +26,7 @@ describe("SystemStaking", () => {
     let staker: SignerWithAddress
     let alice: SignerWithAddress
 
-    const ONE_DAY = 86400
+    const ONE_DAY = 86400 / 5
 
     before(async () => {
         ;[owner, staker, alice] = await ethers.getSigners()
@@ -135,7 +135,7 @@ describe("SystemStaking", () => {
             )
 
             expect(await system.readyToWithdraw(tokenId)).to.false
-            await increase(duration.days(1))
+            await advanceBy(BigNumber.from(ONE_DAY))
             expect(await system.readyToWithdraw(tokenId)).to.true
 
             await expect(

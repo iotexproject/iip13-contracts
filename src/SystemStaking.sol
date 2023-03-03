@@ -181,7 +181,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         }
         BucketInfo memory bucket = __buckets[_tokenId];
 
-        return bucket.unstakedAt + __types[bucket.typeIndex].duration <= block.timestamp;
+        return bucket.unstakedAt + __types[bucket.typeIndex].duration <= block.number;
     }
 
     function bucketTypeOf(
@@ -254,7 +254,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function _unstake(uint256 _tokenId) internal {
         BucketInfo storage bucket = __buckets[_tokenId];
-        bucket.unstakedAt = block.timestamp;
+        bucket.unstakedAt = block.number;
         __votes[bucket.delegate][bucket.typeIndex]--;
         emit Unstaked(_tokenId);
     }
