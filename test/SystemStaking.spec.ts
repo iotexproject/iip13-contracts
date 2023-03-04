@@ -37,7 +37,7 @@ describe("SystemStaking", () => {
 
     describe("staking", () => {
         before(async () => {
-            await system.connect(owner).addBucketType(ethers.utils.parseEther("1"), ONE_DAY)
+            await system.connect(owner).addBucketTypes(ethers.utils.parseEther("1"), ONE_DAY)
         })
 
         it("check basic setup info", async () => {
@@ -107,6 +107,21 @@ describe("SystemStaking", () => {
                 ethers.utils.parseEther("1"),
                 ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
             )
+            await system.connect(staker).unlock(tokenId)
+            await expect(
+                system.connect(staker).emergencyWithdraw(tokenId, alice.address)
+            ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
+            await expect(system.ownerOf(tokenId)).to.be.revertedWith("ERC721: invalid token ID")
+
+            tokenId = await createBucket(
+                system,
+                staker,
+                ONE_DAY,
+                ethers.utils.parseEther("1"),
+                ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
+            )
+            await system.connect(staker).unlock(tokenId)
+            await advanceBy(BigNumber.from(ONE_DAY))
             await system.connect(staker).unstake(tokenId)
             await expect(
                 system.connect(staker).emergencyWithdraw(tokenId, alice.address)
@@ -124,6 +139,12 @@ describe("SystemStaking", () => {
             )
 
             await system.connect(staker).transferFrom(staker.address, alice.address, tokenId)
+            await expect(
+                system.connect(alice).blocksToUnstake(tokenId)
+            ).to.be.revertedWith("not an unlocked bucket")
+            await system.connect(alice).unlock(tokenId)
+            expect(ONE_DAY).to.be.equal(await system.connect(alice).blocksToUnstake(tokenId))
+            await advanceBy(BigNumber.from(ONE_DAY))
             await system.connect(alice).unstake(tokenId)
 
             await expect(
@@ -134,9 +155,9 @@ describe("SystemStaking", () => {
                 "not ready to withdraw"
             )
 
-            expect(await system.readyToWithdraw(tokenId)).to.false
-            await advanceBy(BigNumber.from(ONE_DAY))
-            expect(await system.readyToWithdraw(tokenId)).to.true
+            expect(3 * ONE_DAY - 2).to.be.equal(await system.blocksToWithdraw(tokenId))
+            await advanceBy(BigNumber.from(3 * ONE_DAY))
+            expect(0).to.be.equal(await system.blocksToWithdraw(tokenId))
 
             await expect(
                 system.connect(staker).withdraw(tokenId, alice.address)

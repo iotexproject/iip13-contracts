@@ -1,5 +1,5 @@
 import { ethers } from "hardhat"
-import { BigNumber } from "ethers"
+import { BigNumber, utils } from "ethers"
 
 export async function advanceBlock() {
     return ethers.provider.send("evm_mine", [])
@@ -7,7 +7,7 @@ export async function advanceBlock() {
 
 export async function advanceBy(value: BigNumber) {
     const block = await ethers.provider.getBlock("latest");
-    return ethers.provider.send("hardhat_mine", [value.add(BigNumber.from(block.number)).toHexString()])
+    return ethers.provider.send("hardhat_mine", [utils.hexStripZeros(value.add(BigNumber.from(block.number)).toHexString())])
 }
 
 export async function increase(value: BigNumber) {

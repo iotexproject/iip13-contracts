@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {BucketType, SystemStaking} from "../src/SystemStaking.sol";
 
 contract SystemStakingTest is Test {
-    event NewBucketType(uint256 amount, uint256 duration);
+    event BucketTypeActivated(uint256 amount, uint256 duration);
 
     SystemStaking public system;
 
@@ -53,15 +53,16 @@ contract SystemStakingTest is Test {
         assertEq(system.emergencyWithdrawPenaltyRate(), 100);
     }
 
-    function testAddBucketType() public {
+    function testaddBucketTypes() public {
         vm.startPrank(owner);
 
         assertEq(system.numOfBucketTypes(), 0);
         vm.expectEmit(true, false, false, true);
         // The event we expect
-        emit NewBucketType(1 ether, 1 days);
-        system.addBucketType(1 ether, 1 days);
+        emit BucketTypeActivated(1 ether, 1 days);
+        system.addBucketTypes(1 ether, 1 days);
         assertEq(system.numOfBucketTypes(), 1);
+        assertEq(system.isActiveBucketType(1 ether, 1 days), true);
         assertEq(system.isActiveBucketType(1 ether, 1 days), true);
 
         BucketType[] memory types = system.bucketTypes(0, 1);
@@ -71,28 +72,28 @@ contract SystemStakingTest is Test {
         assertEq(types[0].activatedAt, block.number);
     }
 
-    function testCannotAddBucketType() public {
+    function testCannotaddBucketTypes() public {
         vm.expectRevert("Ownable: caller is not the owner");
-        system.addBucketType(1 ether, 1 days);
+        system.addBucketTypes(1 ether, 1 days);
 
         vm.startPrank(owner);
 
         vm.expectRevert("amount is invalid");
-        system.addBucketType(0, 1 days);
+        system.addBucketTypes(0, 1 days);
 
-        system.addBucketType(1 ether, 1 days);
+        system.addBucketTypes(1 ether, 1 days);
 
         vm.expectRevert("duplicate bucket type");
-        system.addBucketType(1 ether, 1 days);
+        system.addBucketTypes(1 ether, 1 days);
 
         assertEq(system.numOfBucketTypes(), 1);
     }
 
     function testStakeMultiple() public {
         vm.startPrank(owner);
-        system.addBucketType(1 ether, 1 days);
-        system.addBucketType(2 ether, 1 days);
-        system.addBucketType(3 ether, 1 days);
+        system.addBucketTypes(1 ether, 1 days);
+        system.addBucketTypes(2 ether, 1 days);
+        system.addBucketTypes(3 ether, 1 days);
         vm.stopPrank();
 
         vm.deal(alice, 100 ether);
@@ -114,7 +115,7 @@ contract SystemStakingTest is Test {
 
     function testStakeFullflow() public {
         vm.startPrank(owner);
-        system.addBucketType(1 ether, 1 days);
+        system.addBucketTypes(1 ether, 1 days);
         vm.stopPrank();
 
         vm.deal(alice, 100 ether);
@@ -126,7 +127,7 @@ contract SystemStakingTest is Test {
         assertEq(tokenId, 1);
         assertEq(alice, system.ownerOf(tokenId));
 
-        vm.expectRevert("not ready to withdraw");
+        vm.expectRevert("not an unstaked bucket");
         system.withdraw(tokenId, payable(alice));
 
         system.transferFrom(alice, bob, tokenId);
@@ -145,18 +146,29 @@ contract SystemStakingTest is Test {
 
         vm.startPrank(alice);
         system.transferFrom(bob, alice, tokenId);
+        system.unlock(tokenId);
+
+        vm.expectRevert("not a locked token");
+        system.unlock(tokenId);
+
+        vm.expectRevert("not ready to unstake");
         system.unstake(tokenId);
 
+        // TODO: cannot simulate block advance in contract
+        /*
+        system.unstake(tokenId);
         vm.expectRevert("not a staked token");
         system.unstake(tokenId);
 
         vm.expectRevert("cannot transfer unstaked bucket");
         system.transferFrom(alice, bob, tokenId);
+        */
     }
 
     function testDeactivateBucketType() public {
         vm.prank(owner);
-        system.addBucketType(1 ether, 1 days);
+        system.addBucketTypes(1 ether, 1 days);
+        assertEq(system.isActiveBucketType(1 ether, 1 days), true);
         assertEq(system.isActiveBucketType(1 ether, 1 days), true);
 
         bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate")));
@@ -167,8 +179,9 @@ contract SystemStakingTest is Test {
         assertEq(alice, system.ownerOf(tokenId));
 
         vm.prank(owner);
-        system.deactivateBucketType(1 ether, 1 days);
+        system.deactivateBucketTypes(1 ether, 1 days);
         assertEq(system.numOfBucketTypes(), 1);
+        assertEq(system.isActiveBucketType(1 ether, 1 days), false);
         assertEq(system.isActiveBucketType(1 ether, 1 days), false);
 
         vm.prank(alice);

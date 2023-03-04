@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 import {BucketType, SystemStaking} from "../src/SystemStaking.sol";
 
 contract SystemStakingGasTest is Test {
-    event NewBucketType(uint256 amount, uint256 duration);
+    event NewBucketType(uint256 amount, uint256 duration, bool autoStaking);
 
     SystemStaking public system;
 
@@ -35,16 +35,16 @@ contract SystemStakingGasTest is Test {
         system = new SystemStaking();
 
         // prepare bucket types
-        system.addBucketType(1 ether, 1 days);
-        system.addBucketType(1 ether, 2 days);
-        system.addBucketType(1 ether, 3 days);
-        system.addBucketType(1 ether, 4 days);
-        system.addBucketType(1 ether, 5 days);
-        system.addBucketType(1 ether, 6 days);
-        system.addBucketType(1 ether, 7 days);
-        system.addBucketType(1 ether, 8 days);
-        system.addBucketType(1 ether, 9 days);
-        system.addBucketType(1 ether, 10 days);
+        system.addBucketTypes(1 ether, 1 days);
+        system.addBucketTypes(1 ether, 2 days);
+        system.addBucketTypes(1 ether, 3 days);
+        system.addBucketTypes(1 ether, 4 days);
+        system.addBucketTypes(1 ether, 5 days);
+        system.addBucketTypes(1 ether, 6 days);
+        system.addBucketTypes(1 ether, 7 days);
+        system.addBucketTypes(1 ether, 8 days);
+        system.addBucketTypes(1 ether, 9 days);
+        system.addBucketTypes(1 ether, 10 days);
         vm.stopPrank();
 
         vm.startPrank(alice);
@@ -90,35 +90,35 @@ contract SystemStakingGasTest is Test {
     }
 
     function testGasFor10Delegates() public view {
-        system.votesTo(delegates10);
+        system.lockedVotesTo(delegates10);
     }
 
     function testGasFor20Delegates() public view {
-        system.votesTo(delegates20);
+        system.lockedVotesTo(delegates20);
     }
 
     function testGasFor50Delegates() public view {
-        system.votesTo(delegates50);
+        system.lockedVotesTo(delegates50);
     }
 
     function testGasFor100Delegates() public view {
-        system.votesTo(delegates100);
+        system.lockedVotesTo(delegates100);
     }
 
     function testGasFor200Delegates() public view {
-        system.votesTo(delegates200);
+        system.lockedVotesTo(delegates200);
     }
 
     function testGasFor500Delegates() public view {
-        system.votesTo(delegates500);
+        system.lockedVotesTo(delegates500);
     }
 
     function testGasFor1000Delegates() public view {
-        system.votesTo(delegates1000);
+        system.lockedVotesTo(delegates1000);
     }
 
     function test10BucketTypeFor1000() private {
-        uint256[][] memory votes = system.votesTo(delegates1000);
+        uint256[][] memory votes = system.lockedVotesTo(delegates1000);
 
         assertEq(votes.length, 1000);
         for (uint i = 0; i < votes.length; i++) {
