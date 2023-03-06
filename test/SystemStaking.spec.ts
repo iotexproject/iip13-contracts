@@ -19,6 +19,10 @@ const createBucket = async (
     return BigNumber.from(receipt.logs[1].topics[1])
 }
 
+const assertNotExist = async (system: SystemStaking, tokenId: BigNumberish) => {
+    await expect(system.ownerOf(tokenId)).to.be.revertedWith("ERC721: invalid token ID")
+}
+
 describe("SystemStaking", () => {
     let system: SystemStaking
 
@@ -35,7 +39,7 @@ describe("SystemStaking", () => {
         system = (await factory.deploy()) as SystemStaking
     })
 
-    describe("staking", () => {
+    describe("flow", () => {
         before(async () => {
             await system.connect(owner).addBucketTypes(ethers.utils.parseEther("1"), ONE_DAY)
         })
@@ -84,90 +88,96 @@ describe("SystemStaking", () => {
             expect(staker.address).to.equal(await system.ownerOf(1))
         })
 
-        it("should succeed emergency withdraw", async () => {
-            await system.connect(owner).setEmergencyWithdrawPenaltyRate(90)
-
-            let tokenId = await createBucket(
-                system,
-                staker,
-                ONE_DAY,
-                ethers.utils.parseEther("1"),
-                ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
-            )
-
-            await expect(
-                system.connect(staker).emergencyWithdraw(tokenId, alice.address)
-            ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
-            await expect(system.ownerOf(tokenId)).to.be.revertedWith("ERC721: invalid token ID")
-
-            tokenId = await createBucket(
-                system,
-                staker,
-                ONE_DAY,
-                ethers.utils.parseEther("1"),
-                ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
-            )
-            await system.connect(staker).unlock(tokenId)
-            await expect(
-                system.connect(staker).emergencyWithdraw(tokenId, alice.address)
-            ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
-            await expect(system.ownerOf(tokenId)).to.be.revertedWith("ERC721: invalid token ID")
-
-            tokenId = await createBucket(
-                system,
-                staker,
-                ONE_DAY,
-                ethers.utils.parseEther("1"),
-                ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
-            )
-            await system.connect(staker).unlock(tokenId)
-            await advanceBy(BigNumber.from(ONE_DAY))
-            await system.connect(staker).unstake(tokenId)
-            await expect(
-                system.connect(staker).emergencyWithdraw(tokenId, alice.address)
-            ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
-            await expect(system.ownerOf(tokenId)).to.be.revertedWith("ERC721: invalid token ID")
+        describe("emergency withdraw", () => {
+            let tokenId: BigNumber;
+            beforeEach(async () => {
+                tokenId = await createBucket(
+                    system,
+                    staker,
+                    ONE_DAY,
+                    ethers.utils.parseEther("1"),
+                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
+                )
+                await system.connect(owner).setEmergencyWithdrawPenaltyRate(90)
+            })
+            it("succeed emergency withdraw locked bucket", async () => {
+                await expect(
+                    system.connect(staker).emergencyWithdraw(tokenId, alice.address)
+                ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
+                await assertNotExist(system, tokenId)
+            })
+            it("succeed emergency withdraw unlocked bucket", async () => {
+                await system.connect(staker).unlock(tokenId)
+                await expect(
+                    system.connect(staker).emergencyWithdraw(tokenId, alice.address)
+                ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
+                await assertNotExist(system, tokenId)
+            })
+            it("succeed emergency withdraw unstaked bucket", async () => {
+                await system.connect(staker).unlock(tokenId)
+                await advanceBy(BigNumber.from(ONE_DAY))
+                await system.connect(staker).unstake(tokenId)
+                await expect(
+                    system.connect(staker).emergencyWithdraw(tokenId, alice.address)
+                ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
+                await assertNotExist(system, tokenId)
+            })
         })
 
-        it("should succeed with unstake", async () => {
-            const tokenId = await createBucket(
-                system,
-                staker,
-                ONE_DAY,
-                ethers.utils.parseEther("1"),
-                ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
-            )
-
-            await system.connect(staker).transferFrom(staker.address, alice.address, tokenId)
-            await expect(
-                system.connect(alice).blocksToUnstake(tokenId)
-            ).to.be.revertedWith("not an unlocked bucket")
-            await system.connect(alice).unlock(tokenId)
-            expect(ONE_DAY).to.be.equal(await system.connect(alice).blocksToUnstake(tokenId))
-            await advanceBy(BigNumber.from(ONE_DAY))
-            await system.connect(alice).unstake(tokenId)
-
-            await expect(
-                system.connect(alice).transferFrom(alice.address, staker.address, tokenId)
-            ).to.be.revertedWith("cannot transfer unstaked bucket")
-
-            await expect(system.connect(alice).withdraw(tokenId, alice.address)).to.be.revertedWith(
-                "not ready to withdraw"
-            )
-
-            expect(3 * ONE_DAY - 2).to.be.equal(await system.blocksToWithdraw(tokenId))
-            await advanceBy(BigNumber.from(3 * ONE_DAY))
-            expect(0).to.be.equal(await system.blocksToWithdraw(tokenId))
-
-            await expect(
-                system.connect(staker).withdraw(tokenId, alice.address)
-            ).to.be.revertedWith("not owner")
-
-            await expect(
-                await system.connect(alice).withdraw(tokenId, staker.address)
-            ).to.changeEtherBalance(staker.address, ethers.utils.parseEther("1"))
-
-            await expect(system.ownerOf(tokenId)).to.be.revertedWith("ERC721: invalid token ID")
+        describe("normal withdraw", () => {
+            let tokenId: BigNumber;
+            beforeEach(async () => {
+                tokenId = await createBucket(
+                    system,
+                    staker,
+                    ONE_DAY,
+                    ethers.utils.parseEther("1"),
+                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
+                )
+                await system.connect(owner).setEmergencyWithdrawPenaltyRate(90)
+                await system.connect(staker).transferFrom(staker.address, alice.address, tokenId)
+            })
+            it("not unstakable", async () => {
+                await expect(
+                    system.connect(alice).blocksToUnstake(tokenId)
+                ).to.be.revertedWith("not an unlocked bucket")
+            })
+            describe("unlock", () => {
+                beforeEach(async () => {
+                    await system.connect(alice).unlock(tokenId)
+                    expect(ONE_DAY).to.be.equal(await system.connect(alice).blocksToUnstake(tokenId))
+                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await system.connect(alice).unstake(tokenId)
+                })
+                it("unstaked bucket not transaferable", async () => {
+                    await expect(
+                        system.connect(alice).transferFrom(alice.address, staker.address, tokenId)
+                    ).to.be.revertedWith("cannot transfer unstaked bucket")
+                })
+                it("not withdrawable", async () => {
+                    await expect(
+                        system.connect(alice).withdraw(tokenId, alice.address)
+                    ).to.be.revertedWith("not ready to withdraw")
+                })
+                describe("withdraw", () => {
+                    beforeEach(async () => {
+                        expect(3 * ONE_DAY).to.be.equal(await system.blocksToWithdraw(tokenId))
+                        await advanceBy(BigNumber.from(3 * ONE_DAY))
+                        expect(0).to.be.equal(await system.blocksToWithdraw(tokenId))
+                    })
+                    it("not owner", async () => {
+                        await expect(
+                            system.connect(staker).withdraw(tokenId, alice.address)
+                        ).to.be.revertedWith("not owner")
+                    })
+                    it("succeed withdraw", async () => {
+                        await expect(
+                            await system.connect(alice).withdraw(tokenId, staker.address)
+                        ).to.changeEtherBalance(staker.address, ethers.utils.parseEther("1"))
+                        await assertNotExist(system, tokenId)
+                    })
+                })
+            })
         })
     })
 })
