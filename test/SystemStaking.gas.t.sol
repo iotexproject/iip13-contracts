@@ -35,16 +35,16 @@ contract SystemStakingGasTest is Test {
         system = new SystemStaking();
 
         // prepare bucket types
-        system.addBucketTypes(1 ether, 1 days);
-        system.addBucketTypes(1 ether, 2 days);
-        system.addBucketTypes(1 ether, 3 days);
-        system.addBucketTypes(1 ether, 4 days);
-        system.addBucketTypes(1 ether, 5 days);
-        system.addBucketTypes(1 ether, 6 days);
-        system.addBucketTypes(1 ether, 7 days);
-        system.addBucketTypes(1 ether, 8 days);
-        system.addBucketTypes(1 ether, 9 days);
-        system.addBucketTypes(1 ether, 10 days);
+        system.addBucketType(1 ether, 1 days);
+        system.addBucketType(1 ether, 2 days);
+        system.addBucketType(1 ether, 3 days);
+        system.addBucketType(1 ether, 4 days);
+        system.addBucketType(1 ether, 5 days);
+        system.addBucketType(1 ether, 6 days);
+        system.addBucketType(1 ether, 7 days);
+        system.addBucketType(1 ether, 8 days);
+        system.addBucketType(1 ether, 9 days);
+        system.addBucketType(1 ether, 10 days);
         vm.stopPrank();
 
         vm.startPrank(alice);

@@ -41,7 +41,7 @@ describe("SystemStaking", () => {
 
     describe("flow", () => {
         before(async () => {
-            await system.connect(owner).addBucketTypes(ethers.utils.parseEther("1"), ONE_DAY)
+            await system.connect(owner).addBucketType(ethers.utils.parseEther("1"), ONE_DAY)
         })
 
         it("check basic setup info", async () => {
@@ -90,7 +90,7 @@ describe("SystemStaking", () => {
                     expect(staker.address).to.equal(await system.ownerOf(1))
                 })
                 it("should revert with deactivated", async () => {
-                    await system.connect(owner).deactivateBucketTypes(ethers.utils.parseEther("1"), ONE_DAY)
+                    await system.connect(owner).deactivateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
                     await expect(system
                         .connect(staker)
                         ["stake(uint256,bytes12)"](
@@ -100,7 +100,7 @@ describe("SystemStaking", () => {
                                 value: ethers.utils.parseEther("1"),
                             }
                         )).to.be.revertedWith("not active bucket type")
-                    await system.connect(owner).activateBucketTypes(ethers.utils.parseEther("1"), ONE_DAY)
+                    await system.connect(owner).activateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
                 })
             })
         })
@@ -140,11 +140,11 @@ describe("SystemStaking", () => {
                 await assertNotExist(system, tokenId)
             })
             it("succeed emergency withdraw deactivated bucket type", async () => {
-                await system.connect(owner).deactivateBucketTypes(ethers.utils.parseEther("1"), ONE_DAY)
+                await system.connect(owner).deactivateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
                 await expect(
                     system.connect(staker).emergencyWithdraw(tokenId, alice.address)
                 ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
-                await system.connect(owner).activateBucketTypes(ethers.utils.parseEther("1"), ONE_DAY)
+                await system.connect(owner).activateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
                 await assertNotExist(system, tokenId)
             })
             it("should revert for repeatedly withdraw", async () => {

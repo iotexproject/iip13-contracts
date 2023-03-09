@@ -125,7 +125,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return index - 1;
     }
 
-    function addBucketTypes(uint256 _amount, uint256 _duration) external onlyOwner {
+    function addBucketType(uint256 _amount, uint256 _duration) external onlyOwner {
         require(_amount != 0, "amount is invalid");
         require(__bucketTypeIndices[_amount][_duration] == 0, "duplicate bucket type");
         __bucketTypes.push(BucketType(_amount, _duration, block.number));
@@ -133,12 +133,12 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         emit BucketTypeActivated(_amount, _duration);
     }
 
-    function deactivateBucketTypes(uint256 _amount, uint256 _duration) external onlyOwner {
+    function deactivateBucketType(uint256 _amount, uint256 _duration) external onlyOwner {
         __bucketTypes[_bucketTypeIndex(_amount, _duration)].activatedAt = UINT256_MAX;
         emit BucketTypeDeactivated(_amount, _duration);
     }
 
-    function activateBucketTypes(uint256 _amount, uint256 _duration) external onlyOwner {
+    function activateBucketType(uint256 _amount, uint256 _duration) external onlyOwner {
         __bucketTypes[_bucketTypeIndex(_amount, _duration)].activatedAt = block.number;
         emit BucketTypeActivated(_amount, _duration);
     }

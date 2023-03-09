@@ -53,14 +53,14 @@ contract SystemStakingTest is Test {
         assertEq(system.emergencyWithdrawPenaltyRate(), 100);
     }
 
-    function testaddBucketTypes() public {
+    function testaddBucketType() public {
         vm.startPrank(owner);
 
         assertEq(system.numOfBucketTypes(), 0);
         vm.expectEmit(true, false, false, true);
         // The event we expect
         emit BucketTypeActivated(1 ether, 1 days);
-        system.addBucketTypes(1 ether, 1 days);
+        system.addBucketType(1 ether, 1 days);
         assertEq(system.numOfBucketTypes(), 1);
         assertEq(system.isActiveBucketType(1 ether, 1 days), true);
         assertEq(system.isActiveBucketType(1 ether, 1 days), true);
@@ -72,28 +72,28 @@ contract SystemStakingTest is Test {
         assertEq(types[0].activatedAt, block.number);
     }
 
-    function testCannotaddBucketTypes() public {
+    function testCannotaddBucketType() public {
         vm.expectRevert("Ownable: caller is not the owner");
-        system.addBucketTypes(1 ether, 1 days);
+        system.addBucketType(1 ether, 1 days);
 
         vm.startPrank(owner);
 
         vm.expectRevert("amount is invalid");
-        system.addBucketTypes(0, 1 days);
+        system.addBucketType(0, 1 days);
 
-        system.addBucketTypes(1 ether, 1 days);
+        system.addBucketType(1 ether, 1 days);
 
         vm.expectRevert("duplicate bucket type");
-        system.addBucketTypes(1 ether, 1 days);
+        system.addBucketType(1 ether, 1 days);
 
         assertEq(system.numOfBucketTypes(), 1);
     }
 
     function testStakeMultiple() public {
         vm.startPrank(owner);
-        system.addBucketTypes(1 ether, 1 days);
-        system.addBucketTypes(2 ether, 1 days);
-        system.addBucketTypes(3 ether, 1 days);
+        system.addBucketType(1 ether, 1 days);
+        system.addBucketType(2 ether, 1 days);
+        system.addBucketType(3 ether, 1 days);
         vm.stopPrank();
 
         vm.deal(alice, 100 ether);
@@ -115,7 +115,7 @@ contract SystemStakingTest is Test {
 
     function testStakeFullflow() public {
         vm.startPrank(owner);
-        system.addBucketTypes(1 ether, 1 days);
+        system.addBucketType(1 ether, 1 days);
         vm.stopPrank();
 
         vm.deal(alice, 100 ether);
@@ -167,7 +167,7 @@ contract SystemStakingTest is Test {
 
     function testDeactivateBucketType() public {
         vm.prank(owner);
-        system.addBucketTypes(1 ether, 1 days);
+        system.addBucketType(1 ether, 1 days);
         assertEq(system.isActiveBucketType(1 ether, 1 days), true);
         assertEq(system.isActiveBucketType(1 ether, 1 days), true);
 
@@ -179,7 +179,7 @@ contract SystemStakingTest is Test {
         assertEq(alice, system.ownerOf(tokenId));
 
         vm.prank(owner);
-        system.deactivateBucketTypes(1 ether, 1 days);
+        system.deactivateBucketType(1 ether, 1 days);
         assertEq(system.numOfBucketTypes(), 1);
         assertEq(system.isActiveBucketType(1 ether, 1 days), false);
         assertEq(system.isActiveBucketType(1 ether, 1 days), false);
