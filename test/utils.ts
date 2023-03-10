@@ -6,8 +6,10 @@ export async function advanceBlock() {
 }
 
 export async function advanceBy(value: BigNumber) {
-    const block = await ethers.provider.getBlock("latest");
-    return ethers.provider.send("hardhat_mine", [utils.hexStripZeros(value.add(BigNumber.from(block.number)).toHexString())])
+    const block = await ethers.provider.getBlock("latest")
+    return ethers.provider.send("hardhat_mine", [
+        utils.hexStripZeros(value.add(BigNumber.from(block.number)).toHexString()),
+    ])
 }
 
 export async function increase(value: BigNumber) {

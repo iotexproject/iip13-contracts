@@ -61,7 +61,7 @@ describe("SystemStaking", () => {
                             }
                         )
                 ).to.be.revertedWith("invalid bucket type")
-    
+
                 await expect(
                     system
                         .connect(staker)
@@ -74,7 +74,7 @@ describe("SystemStaking", () => {
                         )
                 ).to.be.revertedWith("invalid bucket type")
             })
-    
+
             describe("valid bucket type", () => {
                 it("should succeed for activated", async () => {
                     await system
@@ -86,27 +86,33 @@ describe("SystemStaking", () => {
                                 value: ethers.utils.parseEther("1"),
                             }
                         )
-        
+
                     expect(staker.address).to.equal(await system.ownerOf(1))
                 })
                 it("should revert with deactivated", async () => {
-                    await system.connect(owner).deactivateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
-                    await expect(system
-                        .connect(staker)
-                        ["stake(uint256,bytes12)"](
-                            ONE_DAY,
-                            ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012")),
-                            {
-                                value: ethers.utils.parseEther("1"),
-                            }
-                        )).to.be.revertedWith("not active bucket type")
-                    await system.connect(owner).activateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
+                    await system
+                        .connect(owner)
+                        .deactivateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
+                    await expect(
+                        system
+                            .connect(staker)
+                            ["stake(uint256,bytes12)"](
+                                ONE_DAY,
+                                ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012")),
+                                {
+                                    value: ethers.utils.parseEther("1"),
+                                }
+                            )
+                    ).to.be.revertedWith("not active bucket type")
+                    await system
+                        .connect(owner)
+                        .activateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
                 })
             })
         })
 
         describe("emergency withdraw", () => {
-            let tokenId: BigNumber;
+            let tokenId: BigNumber
             beforeEach(async () => {
                 tokenId = await createBucket(
                     system,
@@ -140,11 +146,15 @@ describe("SystemStaking", () => {
                 await assertNotExist(system, tokenId)
             })
             it("succeed emergency withdraw deactivated bucket type", async () => {
-                await system.connect(owner).deactivateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
+                await system
+                    .connect(owner)
+                    .deactivateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
                 await expect(
                     system.connect(staker).emergencyWithdraw(tokenId, alice.address)
                 ).to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
-                await system.connect(owner).activateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
+                await system
+                    .connect(owner)
+                    .activateBucketType(ethers.utils.parseEther("1"), ONE_DAY)
                 await assertNotExist(system, tokenId)
             })
             it("should revert for repeatedly withdraw", async () => {
@@ -159,7 +169,7 @@ describe("SystemStaking", () => {
         })
 
         describe("normal withdraw", () => {
-            let tokenId: BigNumber;
+            let tokenId: BigNumber
             beforeEach(async () => {
                 tokenId = await createBucket(
                     system,
@@ -172,14 +182,16 @@ describe("SystemStaking", () => {
                 await system.connect(staker).transferFrom(staker.address, alice.address, tokenId)
             })
             it("not unstakable", async () => {
-                await expect(
-                    system.connect(alice).blocksToUnstake(tokenId)
-                ).to.be.revertedWith("not an unlocked bucket")
+                await expect(system.connect(alice).blocksToUnstake(tokenId)).to.be.revertedWith(
+                    "not an unlocked bucket"
+                )
             })
             describe("unlock", () => {
                 beforeEach(async () => {
                     await system.connect(alice).unlock(tokenId)
-                    expect(ONE_DAY).to.be.equal(await system.connect(alice).blocksToUnstake(tokenId))
+                    expect(ONE_DAY).to.be.equal(
+                        await system.connect(alice).blocksToUnstake(tokenId)
+                    )
                     await advanceBy(BigNumber.from(ONE_DAY))
                     await system.connect(alice).unstake(tokenId)
                 })
@@ -217,16 +229,10 @@ describe("SystemStaking", () => {
         describe("votes", () => {
             it("locked votes", async () => {
                 let delegate = ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789013"))
-                await createBucket(
-                    system,
-                    staker,
-                    ONE_DAY,
-                    ethers.utils.parseEther("1"),
-                    delegate
-                )
+                await createBucket(system, staker, ONE_DAY, ethers.utils.parseEther("1"), delegate)
                 expect((await system.connect(staker).lockedVotesTo([delegate]))[0][0]).to.equal(1)
             })
-            
+
             it("unlocked votes", async () => {
                 let delegate = ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789013"))
                 let tokenId = await createBucket(
@@ -244,12 +250,18 @@ describe("SystemStaking", () => {
                 let delegates = [
                     ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789014")),
                     ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789015")),
-                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789016"))
+                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789016")),
                 ]
                 let bucketNum = [3, 2, 4]
                 for (let i = 0; i < bucketNum.length; i++) {
                     for (let j = 0; j < bucketNum[i]; j++) {
-                        await createBucket(system, staker, ONE_DAY, ethers.utils.parseEther("1"), delegates[i])    
+                        await createBucket(
+                            system,
+                            staker,
+                            ONE_DAY,
+                            ethers.utils.parseEther("1"),
+                            delegates[i]
+                        )
                     }
                 }
                 let votes = await system.connect(staker).lockedVotesTo(delegates)
