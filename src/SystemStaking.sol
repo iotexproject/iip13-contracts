@@ -101,6 +101,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     function withdrawFee(uint256 _amount, address payable _recipient) external onlyOwner {
         require(_amount <= __accumulatedWithdrawFee, "invalid amount");
         _recipient.transfer(_amount);
+        __accumulatedWithdrawFee -= _amount;
         emit FeeWithdrawal(_recipient, _amount);
     }
 

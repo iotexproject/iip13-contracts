@@ -44,29 +44,27 @@ describe("SystemStaking", () => {
 
         describe("pause", () => {
             it("not owner pause", async () => {
-                await expect(
-                    system.connect(staker).pause()
-                ).to.be.revertedWith("Ownable: caller is not the owner")
+                await expect(system.connect(staker).pause()).to.be.revertedWith(
+                    "Ownable: caller is not the owner"
+                )
             })
-    
+
             it("multiple pause", async () => {
                 await system.connect(owner).pause()
-                await expect(
-                    system.connect(owner).pause()
-                ).to.be.revertedWith("Pausable: paused")
+                await expect(system.connect(owner).pause()).to.be.revertedWith("Pausable: paused")
             })
-    
+
             it("not owner unpause", async () => {
-                await expect(
-                    system.connect(staker).unpause()
-                ).to.be.revertedWith("Ownable: caller is not the owner")
+                await expect(system.connect(staker).unpause()).to.be.revertedWith(
+                    "Ownable: caller is not the owner"
+                )
             })
-    
+
             it("multiple unpause", async () => {
                 await system.connect(owner).unpause()
-                await expect(
-                    system.connect(owner).unpause()
-                ).to.be.revertedWith("Pausable: not paused")
+                await expect(system.connect(owner).unpause()).to.be.revertedWith(
+                    "Pausable: not paused"
+                )
             })
         })
 
@@ -85,9 +83,9 @@ describe("SystemStaking", () => {
 
             it("not owner read", async () => {
                 await system.connect(owner).setEmergencyWithdrawPenaltyRate(80)
-                await expect(
-                    await system.connect(staker).emergencyWithdrawPenaltyRate()
-                ).to.equal(80)
+                await expect(await system.connect(staker).emergencyWithdrawPenaltyRate()).to.equal(
+                    80
+                )
             })
         })
 
@@ -106,19 +104,17 @@ describe("SystemStaking", () => {
             })
 
             it("add zero amount", async () => {
-                await expect(
-                    system2.connect(owner).addBucketType(0, ONE_DAY)
-                ).to.be.revertedWith("amount is invalid")
+                await expect(system2.connect(owner).addBucketType(0, ONE_DAY)).to.be.revertedWith(
+                    "amount is invalid"
+                )
             })
-            
+
             it("add success", async () => {
                 await system2.connect(owner).addBucketType(10, ONE_DAY)
-                await expect(
-                    await system2.connect(owner).isActiveBucketType(10, ONE_DAY)
-                ).to.equal(true)
-                await expect(
-                    await system2.connect(owner).numOfBucketTypes()
-                ).to.equal(1)
+                await expect(await system2.connect(owner).isActiveBucketType(10, ONE_DAY)).to.equal(
+                    true
+                )
+                await expect(await system2.connect(owner).numOfBucketTypes()).to.equal(1)
                 let types = await system2.connect(owner).bucketTypes(0, 1)
                 expect(types.length).to.equal(1)
                 expect(types[0].amount).to.equal(10)
@@ -128,9 +124,9 @@ describe("SystemStaking", () => {
 
             it("add duplicate", async () => {
                 await system2.connect(owner).addBucketType(10, ONE_DAY)
-                await expect(
-                    system2.connect(owner).addBucketType(10, ONE_DAY)
-                ).to.be.revertedWith("duplicate bucket type")
+                await expect(system2.connect(owner).addBucketType(10, ONE_DAY)).to.be.revertedWith(
+                    "duplicate bucket type"
+                )
             })
 
             it("add multiple", async () => {
@@ -202,11 +198,11 @@ describe("SystemStaking", () => {
                 await system.connect(owner).setEmergencyWithdrawPenaltyRate(10)
                 await system.connect(owner).addBucketType(100, ONE_DAY)
                 let tokenId = await createBucket(
-                    system, 
-                    staker, 
-                    ONE_DAY, 
+                    system,
+                    staker,
+                    ONE_DAY,
                     100,
-                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012")),
+                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012"))
                 )
                 await system.connect(staker).emergencyWithdraw(tokenId, staker.address)
                 expect(await system.connect(staker).accumulatedWithdrawFee()).to.equal(10)
