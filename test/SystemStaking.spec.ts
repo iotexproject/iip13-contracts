@@ -33,8 +33,11 @@ const createBuckets = async (
             value: BigNumber.from(amount).mul(count),
         })
     const receipt = await tx.wait()
-    console.log(receipt)
-    // return BigNumber.from(receipt.logs[1].topics[1])
+    let tokenIds = []
+    for (let i = 1; i < receipt.logs.length; i += 2) {
+        tokenIds.push(BigNumber.from(receipt.logs[i].topics[1]))
+    }
+    return tokenIds
 }
 
 const createBucketsForDelegates = async (
@@ -50,8 +53,11 @@ const createBucketsForDelegates = async (
             value: BigNumber.from(amount).mul(delegates.length),
         })
     const receipt = await tx.wait()
-    console.log(receipt)
-    // return BigNumber.from(receipt.logs[1].topics[1])
+    let tokenIds = []
+    for (let i = 0; i < receipt.logs.length; i++) {
+        tokenIds.push(BigNumber.from(receipt.logs[i].topics[1]))
+    }
+    return tokenIds
 }
 
 const UINT256_MAX = ethers.BigNumber.from(
@@ -286,7 +292,7 @@ describe("SystemStaking", () => {
     })
 
     describe("stake flow", () => {
-        before(async () => {
+        beforeEach(async () => {
             const factory = await ethers.getContractFactory("SystemStaking")
             system = (await factory.deploy()) as SystemStaking
             await system.connect(owner).addBucketType(ONE_ETHER, ONE_DAY)
@@ -442,22 +448,40 @@ describe("SystemStaking", () => {
                 expect((await system.connect(staker).unlockedVotesTo([delegate]))[0][0]).to.equal(1)
             })
 
-            it("multiple delegates", async () => {
-                let delegates = [
+            describe("multiple delegates", () => {
+                const delegates = [
                     ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789014")),
                     ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789015")),
                     ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789016")),
                 ]
-                let bucketNum = [3, 2, 4]
-                for (let i = 0; i < bucketNum.length; i++) {
-                    for (let j = 0; j < bucketNum[i]; j++) {
-                        await createBucket(system, staker, ONE_ETHER, ONE_DAY, delegates[i])
+                const bucketNum = [3, 2, 4]
+                it('create one by one', async () => {
+                    for (let i = 0; i < bucketNum.length; i++) {
+                        for (let j = 0; j < bucketNum[i]; j++) {
+                            await createBucket(system, staker, ONE_ETHER, ONE_DAY, delegates[i])
+                        }
+                    }    
+                })
+                it('create by delegate in batch', async () => {
+                    for (let i = 0; i < bucketNum.length; i++) {
+                        await createBuckets(system, staker, ONE_ETHER, ONE_DAY, delegates[i], bucketNum[i])
                     }
-                }
-                let votes = await system.connect(staker).lockedVotesTo(delegates)
-                for (let i = 0; i < bucketNum.length; i++) {
-                    expect(votes[i][0]).to.equal(bucketNum[i])
-                }
+                })
+                it('create all in batch', async () => {
+                    let list = []
+                    for (let i = 0; i < bucketNum.length; i++) {
+                        for (let j = 0; j < bucketNum[i]; j++) {
+                            list.push(delegates[i])
+                        }
+                    }
+                    await createBucketsForDelegates(system, staker, ONE_ETHER, ONE_DAY, list)
+                })
+                afterEach(async () => {
+                    const votes = await system.connect(staker).lockedVotesTo(delegates)
+                    for (let i = 0; i < bucketNum.length; i++) {
+                        expect(votes[i][0]).to.equal(bucketNum[i])
+                    }    
+                })
             })
         })
     })

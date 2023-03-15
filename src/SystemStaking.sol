@@ -234,10 +234,11 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         bytes12 _delegate,
         uint256 _count
     ) external payable whenNotPaused returns (uint256[] memory tokenIds_) {
-        require(_amount * _count == msg.value, "invalid parameters");
+        require(_count > 0 && _amount * _count == msg.value, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
         require(_isActiveBucketType(index), "not active bucket type");
 
+        tokenIds_ = new uint256[](_count);
         for (uint256 i = 0; i < _count; i++) {
             tokenIds_[i] = _stake(index, _amount, _duration, _delegate);
         }
