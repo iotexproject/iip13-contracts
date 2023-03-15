@@ -100,8 +100,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     // emergency withdraw functions
     function withdrawFee(uint256 _amount, address payable _recipient) external onlyOwner {
         require(_amount <= __accumulatedWithdrawFee, "invalid amount");
-        _recipient.transfer(_amount);
         __accumulatedWithdrawFee -= _amount;
+        _recipient.transfer(_amount);
         emit FeeWithdrawal(_recipient, _amount);
     }
 
@@ -247,14 +247,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function unlock(
         uint256 _tokenId
-    ) external onlyLockedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
+    ) external whenNotPaused onlyLockedToken(_tokenId) onlyTokenOwner(_tokenId) {
         _unlock(_tokenId);
     }
 
     function lock(
         uint256 _tokenId,
         uint256 _duration
-    ) external onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
+    ) external whenNotPaused onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo storage bucket = __buckets[_tokenId];
         require(_duration >= _blocksToUnstake(bucket), "invalid duration");
         uint256 newIndex = _bucketTypeIndex(__bucketTypes[bucket.typeIndex].amount, _duration);
@@ -268,7 +268,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function unstake(
         uint256 _tokenId
-    ) external onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
+    ) external whenNotPaused onlyStakedToken(_tokenId) onlyTokenOwner(_tokenId) {
         require(blocksToUnstake(_tokenId) == 0, "not ready to unstake");
         _unstake(_tokenId);
     }
@@ -276,7 +276,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     function withdraw(
         uint256 _tokenId,
         address payable _recipient
-    ) external onlyTokenOwner(_tokenId) whenNotPaused {
+    ) external whenNotPaused onlyTokenOwner(_tokenId) {
         require(blocksToWithdraw(_tokenId) == 0, "not ready to withdraw");
         _withdraw(_tokenId, _recipient, 0);
     }
@@ -298,7 +298,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     function extendDuration(
         uint256 _tokenId,
         uint256 _newDuration
-    ) external onlyLockedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
+    ) external whenNotPaused onlyLockedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
         BucketType memory bucketType = __bucketTypes[bucket.typeIndex];
         require(_newDuration > bucketType.duration, "invalid operation");
@@ -315,7 +315,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     function increaseAmount(
         uint256 _tokenId,
         uint256 _newAmount
-    ) external payable onlyLockedToken(_tokenId) onlyTokenOwner(_tokenId) whenNotPaused {
+    ) external payable whenNotPaused onlyLockedToken(_tokenId) onlyTokenOwner(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
         BucketType memory bucketType = __bucketTypes[bucket.typeIndex];
         require(msg.value + bucketType.amount == _newAmount, "invalid operation");
