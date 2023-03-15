@@ -34,7 +34,7 @@ const createBuckets = async (
             value: BigNumber.from(amount).mul(count),
         })
     const receipt = await tx.wait()
-    let tokenIds = []
+    const tokenIds = []
     for (let i = 1; i < receipt.logs.length; i += 2) {
         tokenIds.push(BigNumber.from(receipt.logs[i].topics[1]))
     }
@@ -54,7 +54,7 @@ const createBucketsForDelegates = async (
             value: BigNumber.from(amount).mul(delegates.length),
         })
     const receipt = await tx.wait()
-    let tokenIds = []
+    const tokenIds = []
     for (let i = 0; i < receipt.logs.length; i++) {
         tokenIds.push(BigNumber.from(receipt.logs[i].topics[1]))
     }
@@ -177,32 +177,26 @@ describe("SystemStaking", () => {
         })
 
         describe("bucket type", () => {
-            let system2: SystemStaking
-
-            beforeEach(async () => {
-                const factory = await ethers.getContractFactory("SystemStaking")
-                system2 = (await factory.deploy()) as SystemStaking
-            })
-
             it("not owner add", async () => {
-                await expect(
-                    system2.connect(staker).addBucketType(100, ONE_DAY)
-                ).to.be.revertedWith("Ownable: caller is not the owner")
+                await expect(system.connect(staker).addBucketType(100, ONE_DAY)).to.be.revertedWith(
+                    "Ownable: caller is not the owner"
+                )
             })
 
             it("add zero amount", async () => {
-                await expect(system2.connect(owner).addBucketType(0, ONE_DAY)).to.be.revertedWith(
+                await expect(system.connect(owner).addBucketType(0, ONE_DAY)).to.be.revertedWith(
                     "amount is invalid"
                 )
             })
 
             it("add success", async () => {
-                await system2.connect(owner).addBucketType(10, ONE_DAY)
-                await expect(await system2.connect(owner).isActiveBucketType(10, ONE_DAY)).to.equal(
+                await system.connect(owner).addBucketType(10, ONE_DAY)
+                await expect(await system.connect(owner).isActiveBucketType(10, ONE_DAY)).to.equal(
                     true
                 )
-                await expect(await system2.connect(owner).numOfBucketTypes()).to.equal(1)
-                let types = await system2.connect(owner).bucketTypes(0, 1)
+                await expect(await system.connect(owner).numOfBucketTypes()).to.equal(1)
+                await expect(system.bucketTypes(1, 1)).to.be.revertedWith("invalid parameters")
+                const types = await system.connect(owner).bucketTypes(0, 1)
                 expect(types.length).to.equal(1)
                 expect(types[0].amount).to.equal(10)
                 expect(types[0].duration).to.equal(ONE_DAY)
@@ -210,61 +204,61 @@ describe("SystemStaking", () => {
             })
 
             it("add duplicate", async () => {
-                await system2.connect(owner).addBucketType(10, ONE_DAY)
-                await expect(system2.connect(owner).addBucketType(10, ONE_DAY)).to.be.revertedWith(
+                await system.connect(owner).addBucketType(10, ONE_DAY)
+                await expect(system.connect(owner).addBucketType(10, ONE_DAY)).to.be.revertedWith(
                     "duplicate bucket type"
                 )
             })
 
             it("add multiple", async () => {
-                await system2.connect(owner).addBucketType(10, ONE_DAY)
-                await system2.connect(owner).addBucketType(20, ONE_DAY)
-                await system2.connect(owner).addBucketType(30, ONE_DAY)
-                expect(await system2.connect(owner).numOfBucketTypes()).to.equal(3)
+                await system.connect(owner).addBucketType(10, ONE_DAY)
+                await system.connect(owner).addBucketType(20, ONE_DAY)
+                await system.connect(owner).addBucketType(30, ONE_DAY)
+                expect(await system.connect(owner).numOfBucketTypes()).to.equal(3)
             })
 
             it("not owner deactivate", async () => {
-                await system2.connect(owner).addBucketType(100, ONE_DAY)
+                await system.connect(owner).addBucketType(100, ONE_DAY)
                 await expect(
-                    system2.connect(staker).deactivateBucketType(100, ONE_DAY)
+                    system.connect(staker).deactivateBucketType(100, ONE_DAY)
                 ).to.be.revertedWith("Ownable: caller is not the owner")
             })
 
             it("deactivate invalid", async () => {
                 await expect(
-                    system2.connect(owner).deactivateBucketType(100, ONE_DAY)
+                    system.connect(owner).deactivateBucketType(100, ONE_DAY)
                 ).to.be.revertedWith("invalid bucket type")
             })
 
             it("deactivate success", async () => {
-                await system2.connect(owner).addBucketType(100, ONE_DAY)
-                await system2.connect(owner).deactivateBucketType(100, ONE_DAY)
-                await expect(
-                    await system2.connect(owner).isActiveBucketType(100, ONE_DAY)
-                ).to.equal(false)
+                await system.connect(owner).addBucketType(100, ONE_DAY)
+                await system.connect(owner).deactivateBucketType(100, ONE_DAY)
+                await expect(await system.connect(owner).isActiveBucketType(100, ONE_DAY)).to.equal(
+                    false
+                )
             })
 
             it("not owner activate", async () => {
-                await system2.connect(owner).addBucketType(100, ONE_DAY)
-                await system2.connect(owner).deactivateBucketType(100, ONE_DAY)
+                await system.connect(owner).addBucketType(100, ONE_DAY)
+                await system.connect(owner).deactivateBucketType(100, ONE_DAY)
                 await expect(
-                    system2.connect(staker).activateBucketType(100, ONE_DAY)
+                    system.connect(staker).activateBucketType(100, ONE_DAY)
                 ).to.be.revertedWith("Ownable: caller is not the owner")
             })
 
             it("activate invalid", async () => {
                 await expect(
-                    system2.connect(owner).activateBucketType(100, ONE_DAY)
+                    system.connect(owner).activateBucketType(100, ONE_DAY)
                 ).to.be.revertedWith("invalid bucket type")
             })
 
             it("activate success", async () => {
-                await system2.connect(owner).addBucketType(100, ONE_DAY)
-                await system2.connect(owner).deactivateBucketType(100, ONE_DAY)
-                await system2.connect(owner).activateBucketType(100, ONE_DAY)
-                await expect(
-                    await system2.connect(owner).isActiveBucketType(100, ONE_DAY)
-                ).to.equal(true)
+                await system.connect(owner).addBucketType(100, ONE_DAY)
+                await system.connect(owner).deactivateBucketType(100, ONE_DAY)
+                await system.connect(owner).activateBucketType(100, ONE_DAY)
+                await expect(await system.connect(owner).isActiveBucketType(100, ONE_DAY)).to.equal(
+                    true
+                )
             })
         })
 
@@ -284,12 +278,12 @@ describe("SystemStaking", () => {
             it("success", async () => {
                 await system.connect(owner).setEmergencyWithdrawPenaltyRate(10)
                 await system.connect(owner).addBucketType(ONE_ETHER, ONE_DAY)
-                let tokenId = await createBucket(system, staker, ONE_ETHER, ONE_DAY, DELEGATES[0])
+                const tokenId = await createBucket(system, staker, ONE_ETHER, ONE_DAY, DELEGATES[0])
                 await system.connect(staker).emergencyWithdraw(tokenId, staker.address)
                 expect(await system.connect(staker).accumulatedWithdrawFee()).to.equal(
                     ONE_ETHER.div(10)
                 )
-                let oldBalance = await alice.getBalance()
+                const oldBalance = await alice.getBalance()
                 await system.connect(owner).withdrawFee(5, alice.address)
                 expect(await alice.getBalance()).to.equal(ethers.BigNumber.from(5).add(oldBalance))
                 expect(await system.connect(owner).accumulatedWithdrawFee()).to.equal(
@@ -403,6 +397,9 @@ describe("SystemStaking", () => {
                 await system.connect(owner).setEmergencyWithdrawPenaltyRate(90)
                 await system.connect(staker).transferFrom(staker.address, alice.address, tokenId)
             })
+            it("not owner", async () => {
+                await expect(system.connect(staker).unlock(tokenId)).to.be.revertedWith("not owner")
+            })
             it("invalid token id", async () => {
                 const invalidTokenId = tokenId + 100
                 await expect(
@@ -454,20 +451,53 @@ describe("SystemStaking", () => {
                         await system.connect(alice).blocksToUnstake(tokenId)
                     )
                 })
+                it("not owner", async () => {
+                    await expect(system.connect(staker).unstake(tokenId)).to.be.revertedWith(
+                        "not owner"
+                    )
+                })
+                it("not an unstaked token", async () => {
+                    await expect(system.blocksToWithdraw(tokenId)).to.be.revertedWith(
+                        "not an unstaked bucket"
+                    )
+                })
+                it("not ready to unstake", async () => {
+                    await expect(system.connect(alice).unstake(tokenId)).to.be.revertedWith(
+                        "not ready to unstake"
+                    )
+                })
                 it("failed to unlock again", async () => {
                     await expect(system.connect(alice).unlock(tokenId)).to.be.revertedWith(
                         "not a locked token"
                     )
                 })
-                it("lock & unlock", async () => {
-                    await system.connect(alice).lock(tokenId, ONE_DAY)
-                    await expect(system.connect(alice).blocksToUnstake(tokenId)).to.be.revertedWith(
-                        "not an unlocked bucket"
-                    )
-                    await system.connect(alice).unlock(tokenId)
-                    expect(ONE_DAY).to.be.equal(
-                        await system.connect(alice).blocksToUnstake(tokenId)
-                    )
+                describe("lock again", () => {
+                    it("not owner", async () => {
+                        await expect(
+                            system.connect(staker).lock(tokenId, ONE_DAY)
+                        ).to.be.revertedWith("not owner")
+                    })
+                    it("invalid duration", async () => {
+                        await expect(
+                            system.connect(alice).lock(tokenId, ONE_DAY - 100)
+                        ).to.be.revertedWith("invalid duration")
+                    })
+                    it("invalid bucket type", async () => {
+                        await system.deactivateBucketType(ONE_ETHER, ONE_DAY)
+                        await expect(
+                            system.connect(alice).lock(tokenId, ONE_DAY)
+                        ).to.be.revertedWith("invalid bucket type")
+                    })
+                    it("lock & unlock", async () => {
+                        await system.connect(alice).lock(tokenId, ONE_DAY)
+                        await expect(
+                            system.connect(alice).blocksToUnstake(tokenId)
+                        ).to.be.revertedWith("not an unlocked bucket")
+                        await system.connect(alice).unlock(tokenId)
+                        expect(ONE_DAY).to.be.equal(
+                            await system.connect(alice).blocksToUnstake(tokenId)
+                        )
+                    })
                 })
                 describe("unstake", () => {
                     beforeEach(async () => {
@@ -488,9 +518,9 @@ describe("SystemStaking", () => {
                     })
                     describe("withdraw", () => {
                         beforeEach(async () => {
-                            expect(3 * ONE_DAY).to.be.equal(await system.blocksToWithdraw(tokenId))
+                            expect(await system.blocksToWithdraw(tokenId)).to.be.equal(3 * ONE_DAY)
                             await advanceBy(BigNumber.from(3 * ONE_DAY))
-                            expect(0).to.be.equal(await system.blocksToWithdraw(tokenId))
+                            expect(await system.blocksToWithdraw(tokenId)).to.be.equal(0)
                         })
                         it("not owner", async () => {
                             await expect(
@@ -525,43 +555,76 @@ describe("SystemStaking", () => {
             })
 
             describe("multiple delegates", () => {
-                const bucketNum = []
-                for (let i = 0; i < DELEGATES.length; i++) {
-                    bucketNum.push(randomInt(9) + 1)
-                }
-                it("create one by one", async () => {
+                it("invalid parameters", async () => {
+                    await expect(
+                        system
+                            .connect(staker)
+                            ["stake(uint256,uint256,bytes12[])"](ONE_ETHER, ONE_DAY, DELEGATES, {
+                                value: BigNumber.from(ONE_ETHER).mul(DELEGATES.length).sub(1),
+                            })
+                    ).to.be.revertedWith("invalid parameters")
+                    await expect(
+                        system
+                            .connect(staker)
+                            ["stake(uint256,uint256,bytes12,uint256)"](
+                                ONE_ETHER,
+                                ONE_DAY,
+                                DELEGATES[0],
+                                10,
+                                {
+                                    value: BigNumber.from(ONE_ETHER).mul(10).sub(1),
+                                }
+                            )
+                    ).to.be.revertedWith("invalid parameters")
+                })
+                it("not active bucket type", async () => {
+                    await system.deactivateBucketType(ONE_ETHER, ONE_DAY)
+                    await expect(
+                        createBuckets(system, staker, ONE_ETHER, ONE_DAY, DELEGATES[0], 10)
+                    ).to.be.revertedWith("not active bucket type")
+                    await expect(
+                        createBucketsForDelegates(system, staker, ONE_ETHER, ONE_DAY, DELEGATES)
+                    ).to.be.revertedWith("not active bucket type")
+                })
+                describe("success", () => {
+                    const bucketNum = []
                     for (let i = 0; i < DELEGATES.length; i++) {
-                        for (let j = 0; j < bucketNum[i]; j++) {
-                            await createBucket(system, staker, ONE_ETHER, ONE_DAY, DELEGATES[i])
+                        bucketNum.push(randomInt(9) + 1)
+                    }
+                    it("create one by one", async () => {
+                        for (let i = 0; i < DELEGATES.length; i++) {
+                            for (let j = 0; j < bucketNum[i]; j++) {
+                                await createBucket(system, staker, ONE_ETHER, ONE_DAY, DELEGATES[i])
+                            }
                         }
-                    }
-                })
-                it("create by delegate in batch", async () => {
-                    for (let i = 0; i < DELEGATES.length; i++) {
-                        await createBuckets(
-                            system,
-                            staker,
-                            ONE_ETHER,
-                            ONE_DAY,
-                            DELEGATES[i],
-                            bucketNum[i]
-                        )
-                    }
-                })
-                it("create all in batch", async () => {
-                    let list = []
-                    for (let i = 0; i < DELEGATES.length; i++) {
-                        for (let j = 0; j < bucketNum[i]; j++) {
-                            list.push(DELEGATES[i])
+                    })
+                    it("create by delegate in batch", async () => {
+                        for (let i = 0; i < DELEGATES.length; i++) {
+                            await createBuckets(
+                                system,
+                                staker,
+                                ONE_ETHER,
+                                ONE_DAY,
+                                DELEGATES[i],
+                                bucketNum[i]
+                            )
                         }
-                    }
-                    await createBucketsForDelegates(system, staker, ONE_ETHER, ONE_DAY, list)
-                })
-                afterEach(async () => {
-                    const votes = await system.connect(staker).lockedVotesTo(DELEGATES)
-                    for (let i = 0; i < DELEGATES.length; i++) {
-                        expect(votes[i][0]).to.equal(bucketNum[i])
-                    }
+                    })
+                    it("create all in batch", async () => {
+                        let list = []
+                        for (let i = 0; i < DELEGATES.length; i++) {
+                            for (let j = 0; j < bucketNum[i]; j++) {
+                                list.push(DELEGATES[i])
+                            }
+                        }
+                        await createBucketsForDelegates(system, staker, ONE_ETHER, ONE_DAY, list)
+                    })
+                    afterEach(async () => {
+                        const votes = await system.connect(staker).lockedVotesTo(DELEGATES)
+                        for (let i = 0; i < DELEGATES.length; i++) {
+                            expect(votes[i][0]).to.equal(bucketNum[i])
+                        }
+                    })
                 })
             })
 
@@ -706,7 +769,7 @@ describe("SystemStaking", () => {
                     await system
                         .connect(staker)
                         .increaseAmount(tokenId, amount, { value: ONE_ETHER })
-                    let bucket = await system.bucketOf(tokenId)
+                    const bucket = await system.bucketOf(tokenId)
                     expect(bucket.amount_).to.equal(amount)
                 })
             })
@@ -723,7 +786,11 @@ describe("SystemStaking", () => {
                     system.connect(alice).changeDelegate(tokenId, DELEGATES[2])
                 ).to.be.revertedWith("not owner")
             })
-
+            it("same delegate", async () => {
+                await expect(
+                    system.connect(staker).changeDelegate(tokenId, DELEGATES[0])
+                ).to.be.revertedWith("invalid operation")
+            })
             it("locked", async () => {
                 await system.connect(staker).changeDelegate(tokenId, DELEGATES[2])
                 const bucket = await system.bucketOf(tokenId)
