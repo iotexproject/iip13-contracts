@@ -48,7 +48,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     event FeeWithdrawal(address indexed recipient, uint256 amount);
 
     modifier onlyValidToken(uint256 _tokenId) {
-        require(_exists(_tokenId), "invalid token");
+        require(_exists(_tokenId), "ERC721: invalid token ID");
         _;
     }
 
@@ -285,7 +285,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     function emergencyWithdraw(
         uint256 _tokenId,
         address payable _recipient
-    ) external onlyValidToken(_tokenId) onlyTokenOwner(_tokenId) {
+    ) external onlyTokenOwner(_tokenId) {
         BucketInfo memory bucket = __buckets[_tokenId];
         if (_isLocked(bucket)) {
             _unlock(_tokenId);
