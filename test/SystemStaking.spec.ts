@@ -511,6 +511,205 @@ describe("SystemStaking", () => {
                     }
                 })
             })
+
+            it("after increase amount", async () => {
+                let delegate = ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789013"))
+                let tokenId = await createBucket(system, staker, ONE_ETHER, ONE_DAY, delegate)
+                await system.connect(owner).addBucketType(ONE_ETHER.mul(2), ONE_DAY)
+                await system
+                    .connect(staker)
+                    .increaseAmount(tokenId, ONE_ETHER.mul(2), { value: ONE_ETHER })
+                expect((await system.connect(staker).lockedVotesTo([delegate]))[0][0]).to.equal(0)
+                expect((await system.connect(staker).lockedVotesTo([delegate]))[0][1]).to.equal(1)
+            })
+
+            it("after change delegate", async () => {
+                let delegates = [
+                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789018")),
+                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789019")),
+                ]
+                let tokenId = await createBucket(system, staker, ONE_ETHER, ONE_DAY, delegates[0])
+                await system.connect(staker).changeDelegate(tokenId, delegates[1])
+                let votes = await system.connect(staker).lockedVotesTo(delegates)
+                expect(votes[0][0]).to.equal(0)
+                expect(votes[1][0]).to.equal(1)
+            })
+        })
+
+        describe("extend duration", () => {
+            let tokenId: BigNumber
+            beforeEach(async () => {
+                tokenId = await createBucket(system, staker, ONE_ETHER, ONE_DAY, DELEGATE)
+            })
+
+            it("not token owner", async () => {
+                await expect(
+                    system.connect(alice).extendDuration(tokenId, ONE_DAY * 2)
+                ).to.be.revertedWith("not owner")
+            })
+
+            it("token unlocked", async () => {
+                await system.connect(staker).unlock(tokenId)
+                await expect(
+                    system.connect(staker).extendDuration(tokenId, ONE_DAY * 2)
+                ).to.be.revertedWith("not a locked token")
+            })
+
+            it("shorter duration", async () => {
+                await system.connect(owner).addBucketType(ONE_ETHER, ONE_DAY * 0.5)
+                await expect(
+                    system.connect(staker).extendDuration(tokenId, ONE_DAY * 0.5)
+                ).to.be.revertedWith("invalid operation")
+            })
+
+            it("not existed bucket type", async () => {
+                await expect(
+                    system.connect(staker).extendDuration(tokenId, ONE_DAY * 2)
+                ).to.be.revertedWith("invalid bucket type")
+            })
+
+            it("deactivated bucket type", async () => {
+                await system.connect(owner).addBucketType(ONE_ETHER, ONE_DAY * 2)
+                await system.connect(owner).deactivateBucketType(ONE_ETHER, ONE_DAY * 2)
+                await expect(
+                    system.connect(staker).extendDuration(tokenId, ONE_DAY * 2)
+                ).to.be.revertedWith("inactive bucket type")
+            })
+
+            it("success", async () => {
+                await system.connect(owner).addBucketType(ONE_ETHER, ONE_DAY * 2)
+                await system.connect(staker).extendDuration(tokenId, ONE_DAY * 2)
+                let bucket = await system.bucketOf(tokenId)
+                expect(bucket.duration_).to.equal(ONE_DAY * 2)
+            })
+
+            it("blocks to unstake", async () => {
+                await system.connect(owner).addBucketType(ONE_ETHER, ONE_DAY * 2)
+                await system.connect(staker).unlock(tokenId)
+                await advanceBy(BigNumber.from(ONE_DAY))
+                expect(await system.connect(staker).blocksToUnstake(tokenId)).to.equal(0)
+
+                await system.connect(staker).lock(tokenId, ONE_DAY)
+                await system.connect(staker).extendDuration(tokenId, ONE_DAY * 2)
+                await system.connect(staker).unlock(tokenId)
+                expect(await system.connect(staker).blocksToUnstake(tokenId)).to.equal(ONE_DAY * 2)
+            })
+        })
+
+        describe("increase amount", () => {
+            let tokenId: BigNumber
+            beforeEach(async () => {
+                tokenId = await createBucket(system, staker, ONE_ETHER, ONE_DAY, DELEGATE)
+            })
+
+            it("not token owner", async () => {
+                await expect(
+                    system.connect(alice).increaseAmount(tokenId, ONE_ETHER.mul(2))
+                ).to.be.revertedWith("not owner")
+            })
+
+            it("token unlocked", async () => {
+                await system.connect(staker).unlock(tokenId)
+                await expect(
+                    system.connect(staker).increaseAmount(tokenId, ONE_ETHER.mul(2))
+                ).to.be.revertedWith("not a locked token")
+            })
+
+            it("invalid amount", async () => {
+                await system.connect(owner).addBucketType(ONE_ETHER.mul(2), ONE_DAY)
+                await expect(
+                    system
+                        .connect(staker)
+                        .increaseAmount(tokenId, ONE_ETHER.mul(2), { value: ONE_ETHER.mul(0) })
+                ).to.be.revertedWith("invalid operation")
+            })
+
+            it("not existed bucket type", async () => {
+                await expect(
+                    system
+                        .connect(staker)
+                        .increaseAmount(tokenId, ONE_ETHER.mul(2), { value: ONE_ETHER })
+                ).to.be.revertedWith("invalid bucket type")
+            })
+
+            it("deactivated bucket type", async () => {
+                await system.connect(owner).addBucketType(ONE_ETHER.mul(2), ONE_DAY)
+                await system.connect(owner).deactivateBucketType(ONE_ETHER.mul(2), ONE_DAY)
+                await expect(
+                    system
+                        .connect(staker)
+                        .increaseAmount(tokenId, ONE_ETHER.mul(2), { value: ONE_ETHER })
+                ).to.be.revertedWith("inactive bucket type")
+            })
+
+            it("success", async () => {
+                await system.connect(owner).addBucketType(ONE_ETHER.mul(2), ONE_DAY)
+                await system
+                    .connect(staker)
+                    .increaseAmount(tokenId, ONE_ETHER.mul(2), { value: ONE_ETHER })
+                let bucket = await system.bucketOf(tokenId)
+                expect(bucket.amount_).to.equal(ONE_ETHER.mul(2))
+            })
+        })
+
+        describe("change delegate", () => {
+            let tokenId: BigNumber
+            let delegate2: string
+            beforeEach(async () => {
+                tokenId = await createBucket(system, staker, ONE_ETHER, ONE_DAY, DELEGATE)
+                delegate2 = ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789014"))
+            })
+
+            it("not token owner", async () => {
+                await expect(
+                    system.connect(alice).changeDelegate(tokenId, delegate2)
+                ).to.be.revertedWith("not owner")
+            })
+
+            it("locked", async () => {
+                await system.connect(staker).changeDelegate(tokenId, delegate2)
+                let bucket = await system.bucketOf(tokenId)
+                expect(bucket.delegate_).to.equal(delegate2)
+            })
+
+            it("unlocked", async () => {
+                await system.connect(staker).unlock(tokenId)
+                await system.connect(staker).changeDelegate(tokenId, delegate2)
+                let bucket = await system.bucketOf(tokenId)
+                expect(bucket.delegate_).to.equal(delegate2)
+            })
+
+            it("unstaked", async () => {
+                await system.connect(staker).unlock(tokenId)
+                await advanceBy(BigNumber.from(ONE_DAY))
+                await system.connect(staker).unstake(tokenId)
+                await expect(
+                    system.connect(staker).changeDelegate(tokenId, delegate2)
+                ).to.be.revertedWith("not a staked token")
+            })
+        })
+
+        describe("batch change delegates", () => {
+            let tokenIds: BigNumber[]
+            let delegate2: string
+            beforeEach(async () => {
+                tokenIds = await createBuckets(system, staker, ONE_ETHER, ONE_DAY, DELEGATE, 4)
+                delegate2 = ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789014"))
+            })
+
+            it("not token owner", async () => {
+                await expect(
+                    system.connect(alice).changeDelegates(tokenIds, delegate2)
+                ).to.be.revertedWith("not owner")
+            })
+
+            it("success", async () => {
+                await system.connect(staker).changeDelegates(tokenIds, delegate2)
+                for (let i = 0; i < tokenIds.length; i++) {
+                    let bucket = await system.bucketOf(tokenIds[i])
+                    expect(bucket.delegate_).to.equal(delegate2)
+                }
+            })
         })
     })
 })
