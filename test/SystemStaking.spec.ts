@@ -400,35 +400,56 @@ describe("SystemStaking", () => {
                     expect(ONE_DAY).to.be.equal(
                         await system.connect(alice).blocksToUnstake(tokenId)
                     )
-                    await advanceBy(BigNumber.from(ONE_DAY))
-                    await system.connect(alice).unstake(tokenId)
                 })
-                it("unstaked bucket not transaferable", async () => {
-                    await expect(
-                        system.connect(alice).transferFrom(alice.address, staker.address, tokenId)
-                    ).to.be.revertedWith("cannot transfer unstaked bucket")
+                it("failed to unlock again", async () => {
+                    await expect(system.connect(alice).unlock(tokenId)).to.be.revertedWith(
+                        "not a locked token"
+                    )
                 })
-                it("not withdrawable", async () => {
-                    await expect(
-                        system.connect(alice).withdraw(tokenId, alice.address)
-                    ).to.be.revertedWith("not ready to withdraw")
+                it("lock & unlock", async () => {
+                    await system.connect(alice).lock(tokenId, ONE_DAY)
+                    await expect(system.connect(alice).blocksToUnstake(tokenId)).to.be.revertedWith(
+                        "not an unlocked bucket"
+                    )
+                    await system.connect(alice).unlock(tokenId)
+                    expect(ONE_DAY).to.be.equal(
+                        await system.connect(alice).blocksToUnstake(tokenId)
+                    )
                 })
-                describe("withdraw", () => {
+                describe("unstake", () => {
                     beforeEach(async () => {
-                        expect(3 * ONE_DAY).to.be.equal(await system.blocksToWithdraw(tokenId))
-                        await advanceBy(BigNumber.from(3 * ONE_DAY))
-                        expect(0).to.be.equal(await system.blocksToWithdraw(tokenId))
+                        await advanceBy(BigNumber.from(ONE_DAY))
+                        await system.connect(alice).unstake(tokenId)
                     })
-                    it("not owner", async () => {
+                    it("unstaked bucket not transaferable", async () => {
                         await expect(
-                            system.connect(staker).withdraw(tokenId, alice.address)
-                        ).to.be.revertedWith("not owner")
+                            system
+                                .connect(alice)
+                                .transferFrom(alice.address, staker.address, tokenId)
+                        ).to.be.revertedWith("cannot transfer unstaked bucket")
                     })
-                    it("succeed withdraw", async () => {
+                    it("not withdrawable", async () => {
                         await expect(
-                            await system.connect(alice).withdraw(tokenId, staker.address)
-                        ).to.changeEtherBalance(staker.address, ONE_ETHER)
-                        await assertNotExist(system, tokenId)
+                            system.connect(alice).withdraw(tokenId, alice.address)
+                        ).to.be.revertedWith("not ready to withdraw")
+                    })
+                    describe("withdraw", () => {
+                        beforeEach(async () => {
+                            expect(3 * ONE_DAY).to.be.equal(await system.blocksToWithdraw(tokenId))
+                            await advanceBy(BigNumber.from(3 * ONE_DAY))
+                            expect(0).to.be.equal(await system.blocksToWithdraw(tokenId))
+                        })
+                        it("not owner", async () => {
+                            await expect(
+                                system.connect(staker).withdraw(tokenId, alice.address)
+                            ).to.be.revertedWith("not owner")
+                        })
+                        it("succeed withdraw", async () => {
+                            await expect(
+                                await system.connect(alice).withdraw(tokenId, staker.address)
+                            ).to.changeEtherBalance(staker.address, ONE_ETHER)
+                            await assertNotExist(system, tokenId)
+                        })
                     })
                 })
             })
@@ -455,19 +476,26 @@ describe("SystemStaking", () => {
                     ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789016")),
                 ]
                 const bucketNum = [3, 2, 4]
-                it('create one by one', async () => {
+                it("create one by one", async () => {
                     for (let i = 0; i < bucketNum.length; i++) {
                         for (let j = 0; j < bucketNum[i]; j++) {
                             await createBucket(system, staker, ONE_ETHER, ONE_DAY, delegates[i])
                         }
-                    }    
-                })
-                it('create by delegate in batch', async () => {
-                    for (let i = 0; i < bucketNum.length; i++) {
-                        await createBuckets(system, staker, ONE_ETHER, ONE_DAY, delegates[i], bucketNum[i])
                     }
                 })
-                it('create all in batch', async () => {
+                it("create by delegate in batch", async () => {
+                    for (let i = 0; i < bucketNum.length; i++) {
+                        await createBuckets(
+                            system,
+                            staker,
+                            ONE_ETHER,
+                            ONE_DAY,
+                            delegates[i],
+                            bucketNum[i]
+                        )
+                    }
+                })
+                it("create all in batch", async () => {
                     let list = []
                     for (let i = 0; i < bucketNum.length; i++) {
                         for (let j = 0; j < bucketNum[i]; j++) {
@@ -480,7 +508,7 @@ describe("SystemStaking", () => {
                     const votes = await system.connect(staker).lockedVotesTo(delegates)
                     for (let i = 0; i < bucketNum.length; i++) {
                         expect(votes[i][0]).to.equal(bucketNum[i])
-                    }    
+                    }
                 })
             })
         })
