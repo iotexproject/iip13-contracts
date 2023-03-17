@@ -347,7 +347,7 @@ describe("SystemStaking", () => {
                     await system.connect(owner).deactivateBucketType(ONE_ETHER, ONE_DAY)
                     await expect(
                         createBucket(system, staker, ONE_ETHER, ONE_DAY, DELEGATES[0])
-                    ).to.be.revertedWith("not active bucket type")
+                    ).to.be.revertedWith("inactive bucket type")
                     await system.connect(owner).activateBucketType(ONE_ETHER, ONE_DAY)
                 })
                 it("should emit Staked", async () => {
@@ -510,11 +510,11 @@ describe("SystemStaking", () => {
                             system.connect(alice).lock(tokenId, ONE_DAY - 100)
                         ).to.be.revertedWith("invalid duration")
                     })
-                    it("invalid bucket type", async () => {
+                    it("inactive bucket type", async () => {
                         await system.deactivateBucketType(ONE_ETHER, ONE_DAY)
                         await expect(
                             system.connect(alice).lock(tokenId, ONE_DAY)
-                        ).to.be.revertedWith("invalid bucket type")
+                        ).to.be.revertedWith("inactive bucket type")
                     })
                     it("lock & unlock", async () => {
                         await expect(system.connect(alice).lock(tokenId, ONE_DAY))
@@ -623,10 +623,10 @@ describe("SystemStaking", () => {
                     await system.deactivateBucketType(ONE_ETHER, ONE_DAY)
                     await expect(
                         createBuckets(system, staker, ONE_ETHER, ONE_DAY, DELEGATES[0], 10)
-                    ).to.be.revertedWith("not active bucket type")
+                    ).to.be.revertedWith("inactive bucket type")
                     await expect(
                         createBucketsForDelegates(system, staker, ONE_ETHER, ONE_DAY, DELEGATES)
-                    ).to.be.revertedWith("not active bucket type")
+                    ).to.be.revertedWith("inactive bucket type")
                 })
                 describe("success", () => {
                     const bucketNum = []

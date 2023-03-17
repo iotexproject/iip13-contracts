@@ -185,7 +185,7 @@ contract SystemStakingTest is Test {
         assertEq(system.isActiveBucketType(1 ether, 1 days), false);
 
         vm.prank(alice);
-        vm.expectRevert("not active bucket type");
+        vm.expectRevert("inactive bucket type");
         system.stake{value: 1 ether}(1 days, delegate);
     }
 }

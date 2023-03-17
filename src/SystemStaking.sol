@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 struct BucketInfo {
     uint256 typeIndex;
-    uint256 unlockedAt;
-    uint256 unstakedAt;
+    uint256 unlockedAt; // UINT256_MAX: in lock
+    uint256 unstakedAt; // UINT256_MAX: in stake
     bytes12 delegate;
 }
 
@@ -222,7 +222,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         bytes12 _delegate
     ) external payable whenNotPaused returns (uint256) {
         uint256 index = _bucketTypeIndex(msg.value, _duration);
-        require(_isActiveBucketType(index), "not active bucket type");
+        _assertOnlyActiveBucketType(index);
 
         return _stake(index, msg.value, _duration, _delegate);
     }
@@ -235,7 +235,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) external payable whenNotPaused returns (uint256[] memory tokenIds_) {
         require(_amount * _delegates.length == msg.value, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
-        require(_isActiveBucketType(index), "not active bucket type");
+        _assertOnlyActiveBucketType(index);
 
         tokenIds_ = new uint256[](_delegates.length);
         for (uint256 i = 0; i < _delegates.length; i++) {
@@ -254,7 +254,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) external payable whenNotPaused returns (uint256[] memory tokenIds_) {
         require(_count > 0 && _amount * _count == msg.value, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
-        require(_isActiveBucketType(index), "not active bucket type");
+        _assertOnlyActiveBucketType(index);
 
         tokenIds_ = new uint256[](_count);
         for (uint256 i = 0; i < _count; i++) {
@@ -279,7 +279,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         BucketInfo storage bucket = __buckets[_tokenId];
         require(_duration >= _blocksToUnstake(bucket), "invalid duration");
         uint256 newIndex = _bucketTypeIndex(__bucketTypes[bucket.typeIndex].amount, _duration);
-        require(_isActiveBucketType(newIndex), "invalid bucket type");
+        _assertOnlyActiveBucketType(newIndex);
         bucket.unlockedAt = UINT256_MAX;
         __unlockedVotes[bucket.delegate][bucket.typeIndex]--;
         bucket.typeIndex = newIndex;
@@ -425,6 +425,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return bucket.unlockedAt == UINT256_MAX;
     }
 
+    function _assertOnlyActiveBucketType(uint256 _index) internal view {
+        require(_isActiveBucketType(_index), "inactive bucket type");
+    }
+
     function _beforeTokenTransfer(
         address _from,
         address _to,
@@ -501,7 +505,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 _oldBucketTypeId
     ) internal {
         uint256 index = _bucketTypeIndex(_amount, _duration);
-        require(_isActiveBucketType(index), "inactive bucket type");
+        _assertOnlyActiveBucketType(index);
         __lockedVotes[_delegate][_oldBucketTypeId]--;
         __lockedVotes[_delegate][index]++;
         __buckets[_tokenId].typeIndex = index;
