@@ -75,18 +75,63 @@ contract SystemStakingGasTest is Test {
                 system.stake{value: 1 ether}(j * 1 days, delegate);
             }
         }
+        vm.deal(alice, 10000 ether);
     }
 
-    function testStakeInBatchGas() public {
-        vm.deal(alice, 10000 ether);
-        for (uint j = 1; j < 11; j++) {
-            uint256[] memory tokenIds = system.stake{value: 100 ether}(
-                1 ether,
-                j * 1 days,
-                delegates100
-            );
-            assertEq(tokenIds.length, 100);
-        }
+    function testStake10InBatchGas() public {
+        system.stake{value: 10 ether}(
+            1 ether,
+            1 days,
+            delegates10
+        );
+    }
+
+    function testStake20InBatchGas() public {
+        system.stake{value: 20 ether}(
+            1 ether,
+            1 days,
+            delegates20
+        );
+    }
+
+    function testStake50InBatchGas() public {
+        system.stake{value: 50 ether}(
+            1 ether,
+            1 days,
+            delegates50
+        );
+    }
+
+    function testStake100InBatchGas() public {
+        system.stake{value: 100 ether}(
+            1 ether,
+            1 days,
+            delegates100
+        );
+    }
+
+    function testStake200InBatchGas() public {
+        system.stake{value: 200 ether}(
+            1 ether,
+            1 days,
+            delegates200
+        );
+    }
+
+    function testStake500InBatchGas() public {
+        system.stake{value: 500 ether}(
+            1 ether,
+            1 days,
+            delegates500
+        );
+    }
+
+    function testStake1000InBatchGas() public {
+        system.stake{value: 1000 ether}(
+            1 ether,
+            1 days,
+            delegates1000
+        );
     }
 
     function testGasFor10Delegates() public view {
@@ -117,7 +162,7 @@ contract SystemStakingGasTest is Test {
         system.lockedVotesTo(delegates1000);
     }
 
-    function test10BucketTypeFor1000() private {
+    function test10BucketTypeFor1000() public {
         uint256[][] memory votes = system.lockedVotesTo(delegates1000);
 
         assertEq(votes.length, 1000);
@@ -128,4 +173,6 @@ contract SystemStakingGasTest is Test {
             }
         }
     }
+
+    // TODO (chenchen): test change delegates in batch
 }

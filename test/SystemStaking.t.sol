@@ -153,16 +153,6 @@ contract SystemStakingTest is Test {
 
         vm.expectRevert("not ready to unstake");
         system.unstake(tokenId);
-
-        // TODO: cannot simulate block advance in contract
-        /*
-        system.unstake(tokenId);
-        vm.expectRevert("not a staked token");
-        system.unstake(tokenId);
-
-        vm.expectRevert("cannot transfer unstaked bucket");
-        system.transferFrom(alice, bob, tokenId);
-        */
     }
 
     function testDeactivateBucketType() public {

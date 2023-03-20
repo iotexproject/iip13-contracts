@@ -543,7 +543,7 @@ describe("SystemStaking", () => {
                             system
                                 .connect(alice)
                                 .transferFrom(alice.address, staker.address, tokenId)
-                        ).to.be.revertedWith("cannot transfer unstaked bucket")
+                        ).to.be.revertedWith("cannot transfer unstaked token")
                     })
                     it("not withdrawable", async () => {
                         await expect(
