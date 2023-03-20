@@ -2,6 +2,7 @@ import * as dotenv from "dotenv"
 import type { HardhatUserConfig } from "hardhat/config"
 import "@nomicfoundation/hardhat-toolbox"
 import "solidity-coverage"
+import "hardhat-gas-reporter"
 
 dotenv.config()
 
