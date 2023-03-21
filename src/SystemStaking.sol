@@ -252,6 +252,17 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _unlock(_tokenId);
     }
 
+    function unlock(
+        uint256[] calldata _tokenIds
+    ) external whenNotPaused {
+        uint256 tokenId;
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            tokenId = _tokenIds[i];
+            require(ownerOf(tokenId) == msg.sender && _isLocked(__buckets[tokenId]), "invalid operation");
+            _unlock(tokenId);
+        }
+    }
+
     function lock(
         uint256 _tokenId,
         uint256 _duration
