@@ -136,8 +136,12 @@ describe("SystemStaking", () => {
                             DELEGATES[0],
                         ])
                     ).to.be.revertedWith("Pausable: paused")
-                    await expect(system.lock(1, ONE_DAY)).to.be.revertedWith("Pausable: paused")
-                    await expect(system["unlock(uint256)"](1)).to.be.revertedWith("Pausable: paused")
+                    await expect(system["lock(uint256,uint256)"](1, ONE_DAY)).to.be.revertedWith(
+                        "Pausable: paused"
+                    )
+                    await expect(system["unlock(uint256)"](1)).to.be.revertedWith(
+                        "Pausable: paused"
+                    )
                     await expect(system.unstake(1)).to.be.revertedWith("Pausable: paused")
                     await expect(system.withdraw(1, staker.address)).to.be.revertedWith(
                         "Pausable: paused"
@@ -281,7 +285,7 @@ describe("SystemStaking", () => {
             it("invalid amount", async () => {
                 await expect(
                     system.connect(owner).withdrawFee(100, staker.address)
-                ).to.be.revertedWith("invalid amount")
+                ).to.be.revertedWithPanic(0x11)
             })
 
             it("success", async () => {
@@ -371,22 +375,16 @@ describe("SystemStaking", () => {
             it("succeed emergency withdraw locked bucket", async () => {
                 await expect(system.connect(staker).emergencyWithdraw(tokenId, alice.address))
                     .to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
-                    .to.emit(system.connect(staker), "Unlocked")
-                    .withArgs(tokenId)
-                    .to.emit(system.connect(staker), "Unstaked")
-                    .withArgs(tokenId)
-                    .to.emit(system.connect(staker), "Withdrawal")
-                    .withArgs(tokenId, alice.address, ONE_ETHER, ethers.utils.parseEther("0.9"))
+                    .to.emit(system.connect(staker), "EmergencyWithdrawal")
+                    .withArgs(tokenId, alice.address, ethers.utils.parseEther("0.9"))
                 await assertNotExist(system, tokenId)
             })
             it("succeed emergency withdraw unlocked bucket", async () => {
                 await system.connect(staker)["unlock(uint256)"](tokenId)
                 await expect(system.connect(staker).emergencyWithdraw(tokenId, alice.address))
                     .to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
-                    .to.emit(system.connect(staker), "Unstaked")
-                    .withArgs(tokenId)
-                    .to.emit(system.connect(staker), "Withdrawal")
-                    .withArgs(tokenId, alice.address, ONE_ETHER, ethers.utils.parseEther("0.9"))
+                    .to.emit(system.connect(staker), "EmergencyWithdrawal")
+                    .withArgs(tokenId, alice.address, ethers.utils.parseEther("0.9"))
                 await assertNotExist(system, tokenId)
             })
             it("succeed emergency withdraw unstaked bucket", async () => {
@@ -395,8 +393,8 @@ describe("SystemStaking", () => {
                 await system.connect(staker).unstake(tokenId)
                 await expect(system.connect(staker).emergencyWithdraw(tokenId, alice.address))
                     .to.changeEtherBalance(alice.address, ethers.utils.parseEther("0.1"))
-                    .to.emit(system.connect(staker), "Withdrawal")
-                    .withArgs(tokenId, alice.address, ONE_ETHER, ethers.utils.parseEther("0.9"))
+                    .to.emit(system.connect(staker), "EmergencyWithdrawal")
+                    .withArgs(tokenId, alice.address, ethers.utils.parseEther("0.9"))
                 await assertNotExist(system, tokenId)
             })
             it("succeed emergency withdraw deactivated bucket type", async () => {
@@ -426,27 +424,29 @@ describe("SystemStaking", () => {
                 await system.connect(staker).transferFrom(staker.address, alice.address, tokenId)
             })
             it("not owner", async () => {
-                await expect(system.connect(staker)["unlock(uint256)"](tokenId)).to.be.revertedWith("not owner")
+                await expect(system.connect(staker)["unlock(uint256)"](tokenId)).to.be.revertedWith(
+                    "not owner"
+                )
             })
             it("invalid token id", async () => {
                 const invalidTokenId = tokenId + 100
                 await expect(
                     system.connect(staker).blocksToUnstake(invalidTokenId)
-                ).to.be.revertedWith("not a staked token")
+                ).to.be.revertedWith("ERC721: invalid token ID")
                 await expect(
                     system.connect(staker).blocksToWithdraw(invalidTokenId)
                 ).to.be.revertedWith("ERC721: invalid token ID")
                 await expect(system.connect(staker).bucketOf(invalidTokenId)).to.be.revertedWith(
                     "ERC721: invalid token ID"
                 )
-                await expect(system.connect(staker)["unlock(uint256)"](invalidTokenId)).to.be.revertedWith(
-                    "not a locked token"
-                )
                 await expect(
-                    system.connect(staker).lock(invalidTokenId, ONE_DAY)
-                ).to.be.revertedWith("not a staked token")
+                    system.connect(staker)["unlock(uint256)"](invalidTokenId)
+                ).to.be.revertedWith("ERC721: invalid token ID")
+                await expect(
+                    system.connect(staker)["lock(uint256,uint256)"](invalidTokenId, ONE_DAY)
+                ).to.be.revertedWith("ERC721: invalid token ID")
                 await expect(system.connect(staker).unstake(invalidTokenId)).to.be.revertedWith(
-                    "not a staked token"
+                    "ERC721: invalid token ID"
                 )
                 await expect(
                     system.connect(staker).withdraw(invalidTokenId, alice.address)
@@ -456,16 +456,16 @@ describe("SystemStaking", () => {
                 ).to.be.revertedWith("ERC721: invalid token ID")
                 await expect(
                     system.connect(staker).extendDuration(invalidTokenId, ONE_DAY)
-                ).to.be.revertedWith("not a locked token")
+                ).to.be.revertedWith("ERC721: invalid token ID")
                 await expect(
                     system.connect(staker).increaseAmount(invalidTokenId, ONE_ETHER)
-                ).to.be.revertedWith("not a locked token")
+                ).to.be.revertedWith("ERC721: invalid token ID")
                 await expect(
                     system.connect(staker).changeDelegate(invalidTokenId, DELEGATES[0])
-                ).to.be.revertedWith("not a staked token")
+                ).to.be.revertedWith("ERC721: invalid token ID")
                 await expect(
                     system.connect(staker).changeDelegates([invalidTokenId], DELEGATES[0])
-                ).to.be.revertedWith("not a staked token")
+                ).to.be.revertedWith("ERC721: invalid token ID")
             })
             it("not unstakable", async () => {
                 await expect(system.connect(alice).blocksToUnstake(tokenId)).to.be.revertedWith(
@@ -495,29 +495,31 @@ describe("SystemStaking", () => {
                     )
                 })
                 it("failed to unlock again", async () => {
-                    await expect(system.connect(alice)["unlock(uint256)"](tokenId)).to.be.revertedWith(
-                        "not a locked token"
-                    )
+                    await expect(
+                        system.connect(alice)["unlock(uint256)"](tokenId)
+                    ).to.be.revertedWith("not a locked token")
                 })
                 describe("lock again", () => {
                     it("not owner", async () => {
                         await expect(
-                            system.connect(staker).lock(tokenId, ONE_DAY)
+                            system.connect(staker)["lock(uint256,uint256)"](tokenId, ONE_DAY)
                         ).to.be.revertedWith("not owner")
                     })
                     it("invalid duration", async () => {
                         await expect(
-                            system.connect(alice).lock(tokenId, ONE_DAY - 100)
+                            system.connect(alice)["lock(uint256,uint256)"](tokenId, ONE_DAY - 100)
                         ).to.be.revertedWith("invalid duration")
                     })
                     it("inactive bucket type", async () => {
                         await system.deactivateBucketType(ONE_ETHER, ONE_DAY)
                         await expect(
-                            system.connect(alice).lock(tokenId, ONE_DAY)
+                            system.connect(alice)["lock(uint256,uint256)"](tokenId, ONE_DAY)
                         ).to.be.revertedWith("inactive bucket type")
                     })
                     it("lock & unlock", async () => {
-                        await expect(system.connect(alice).lock(tokenId, ONE_DAY))
+                        await expect(
+                            system.connect(alice)["lock(uint256,uint256)"](tokenId, ONE_DAY)
+                        )
                             .to.emit(system.connect(alice), "Locked")
                             .withArgs(tokenId, ONE_DAY)
                         await expect(
@@ -567,12 +569,7 @@ describe("SystemStaking", () => {
                             )
                                 .to.changeEtherBalance(staker.address, ONE_ETHER)
                                 .to.emit(system.connect(alice), "Withdrawal")
-                                .withArgs(
-                                    tokenId,
-                                    staker.address,
-                                    ONE_ETHER,
-                                    ethers.utils.parseEther("0")
-                                )
+                                .withArgs(tokenId, staker.address)
                             await assertNotExist(system, tokenId)
                         })
                     })
@@ -754,7 +751,7 @@ describe("SystemStaking", () => {
                     await advanceBy(BigNumber.from(ONE_DAY))
                     expect(await system.connect(staker).blocksToUnstake(tokenId)).to.equal(0)
 
-                    await system.connect(staker).lock(tokenId, ONE_DAY)
+                    await system.connect(staker)["lock(uint256,uint256)"](tokenId, ONE_DAY)
                     await system.connect(staker).extendDuration(tokenId, duration)
                     await system.connect(staker)["unlock(uint256)"](tokenId)
                     expect(await system.connect(staker).blocksToUnstake(tokenId)).to.equal(duration)
