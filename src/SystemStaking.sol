@@ -345,13 +345,15 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             _assertOnlyTokenOwner(tokenId);
             bucket = __buckets[tokenId];
             _assertOnlyStakedToken(bucket);
-            bucketType = __bucketTypes[bucket.typeIndex];
+            uint256 typeIndex = bucket.typeIndex;
+            bytes12 delegate = bucket.delegate;
+            bucketType = __bucketTypes[typeIndex];
             require(_newDuration >= bucketType.duration, "invalid duration");
             amount += bucketType.amount;
             if (_isTriggered(bucket.unlockedAt)) {
-                __unlockedVotes[bucket.delegate][bucket.typeIndex]--;
+                __unlockedVotes[delegate][typeIndex]--;
             } else {
-                __lockedVotes[bucket.delegate][bucket.typeIndex]--;
+                __lockedVotes[delegate][typeIndex]--;
             }
             if (i != 1) {
                 _burn(tokenId);
@@ -369,9 +371,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) external whenNotPaused onlyTokenOwner(_tokenId) {
         BucketInfo storage bucket = __buckets[_tokenId];
         _assertOnlyLockedToken(bucket);
-        BucketType storage bucketType = __bucketTypes[bucket.typeIndex];
+        uint256 typeIndex = bucket.typeIndex;
+        BucketType storage bucketType = __bucketTypes[typeIndex];
         require(_newDuration > bucketType.duration, "invalid operation");
-        __lockedVotes[bucket.delegate][bucket.typeIndex]--;
+        __lockedVotes[bucket.delegate][typeIndex]--;
         _updateBucketInfo(bucket, bucketType.amount, _newDuration);
         emit DurationExtended(_tokenId, _newDuration);
     }
@@ -382,9 +385,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) external payable whenNotPaused onlyTokenOwner(_tokenId) {
         BucketInfo storage bucket = __buckets[_tokenId];
         _assertOnlyLockedToken(bucket);
-        BucketType storage bucketType = __bucketTypes[bucket.typeIndex];
+        uint256 typeIndex = bucket.typeIndex;
+        BucketType storage bucketType = __bucketTypes[typeIndex];
         require(msg.value + bucketType.amount == _newAmount, "invalid operation");
-        __lockedVotes[bucket.delegate][bucket.typeIndex]--;
+        __lockedVotes[bucket.delegate][typeIndex]--;
         _updateBucketInfo(bucket, _newAmount, bucketType.duration);
         emit AmountIncreased(_tokenId, _newAmount);
     }
@@ -480,32 +484,33 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         address _from,
         address _to,
         uint256 _firstTokenId,
-        uint256 batchSize
+        uint256 _batchSize
     ) internal override {
-        require(batchSize == 1, "batch transfer is not supported");
+        require(_batchSize == 1, "batch transfer is not supported");
         require(
             _to == address(0) || !_isTriggered(__buckets[_firstTokenId].unstakedAt),
             "cannot transfer unstaked token"
         );
-        super._beforeTokenTransfer(_from, _to, _firstTokenId, batchSize);
+        super._beforeTokenTransfer(_from, _to, _firstTokenId, _batchSize);
     }
 
-    function _blocksToWithdraw(uint256 unstakedAt) internal view returns (uint256) {
-        require(_isTriggered(unstakedAt), "not an unstaked bucket");
-        if (unstakedAt + (3 * 24 * 60 * 60) / 5 < block.number) {
+    function _blocksToWithdraw(uint256 _unstakedAt) internal view returns (uint256) {
+        require(_isTriggered(_unstakedAt), "not an unstaked bucket");
+        if (_unstakedAt + (3 * 24 * 60 * 60) / 5 < block.number) {
             return 0;
         }
 
-        return unstakedAt + (3 * 24 * 60 * 60) / 5 - block.number;
+        return _unstakedAt + (3 * 24 * 60 * 60) / 5 - block.number;
     }
 
     function _blocksToUnstake(BucketInfo storage _bucket) internal view returns (uint256) {
-        require(_isTriggered(_bucket.unlockedAt), "not an unlocked bucket");
+        uint256 unlockedAt = _bucket.unlockedAt;
+        require(_isTriggered(unlockedAt), "not an unlocked bucket");
         uint256 duration = __bucketTypes[_bucket.typeIndex].duration;
-        if (_bucket.unlockedAt + duration < block.number) {
+        if (unlockedAt + duration < block.number) {
             return 0;
         }
-        return _bucket.unlockedAt + duration - block.number;
+        return unlockedAt + duration - block.number;
     }
 
     function _stake(
@@ -521,19 +526,23 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function _unlock(BucketInfo storage _bucket) internal {
+        uint256 typeIndex = _bucket.typeIndex;
+        bytes12 delegate = _bucket.delegate;
         _bucket.unlockedAt = block.number;
-        __lockedVotes[_bucket.delegate][_bucket.typeIndex]--;
-        __unlockedVotes[_bucket.delegate][_bucket.typeIndex]++;
+        __lockedVotes[delegate][typeIndex]--;
+        __unlockedVotes[delegate][typeIndex]++;
     }
 
-    function _lock(BucketInfo storage bucket, uint256 _duration) internal {
-        require(_duration >= _blocksToUnstake(bucket), "invalid duration");
-        uint256 newIndex = _bucketTypeIndex(__bucketTypes[bucket.typeIndex].amount, _duration);
+    function _lock(BucketInfo storage _bucket, uint256 _duration) internal {
+        uint256 typeIndex = _bucket.typeIndex;
+        bytes12 delegate = _bucket.delegate;
+        require(_duration >= _blocksToUnstake(_bucket), "invalid duration");
+        uint256 newIndex = _bucketTypeIndex(__bucketTypes[typeIndex].amount, _duration);
         _assertOnlyActiveBucketType(newIndex);
-        bucket.unlockedAt = UINT256_MAX;
-        __unlockedVotes[bucket.delegate][bucket.typeIndex]--;
-        bucket.typeIndex = newIndex;
-        __lockedVotes[bucket.delegate][newIndex]++;
+        _bucket.unlockedAt = UINT256_MAX;
+        __unlockedVotes[delegate][typeIndex]--;
+        _bucket.typeIndex = newIndex;
+        __lockedVotes[delegate][newIndex]++;
     }
 
     function _unstake(BucketInfo storage _bucket) internal {
@@ -555,30 +564,32 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function _updateBucketInfo(
-        BucketInfo storage bucket,
+        BucketInfo storage _bucket,
         uint256 _amount,
         uint256 _duration
     ) internal {
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
-        __lockedVotes[bucket.delegate][index]++;
-        bucket.typeIndex = index;
+        __lockedVotes[_bucket.delegate][index]++;
+        _bucket.typeIndex = index;
     }
 
     function _changeDelegate(
-        BucketInfo storage bucket,
-        bytes12 _delegate
+        BucketInfo storage _bucket,
+        bytes12 _newDelegate
     ) internal {
-        _assertOnlyStakedToken(bucket);
-        require(bucket.delegate != _delegate, "invalid operation");
-        if (_isTriggered(bucket.unlockedAt)) {
-            __unlockedVotes[bucket.delegate][bucket.typeIndex]--;
-            __unlockedVotes[_delegate][bucket.typeIndex]++;
+        _assertOnlyStakedToken(_bucket);
+        uint256 typeIndex = _bucket.typeIndex;
+        bytes12 delegate = _bucket.delegate;
+        require(delegate != _newDelegate, "invalid operation");
+        if (_isTriggered(_bucket.unlockedAt)) {
+            __unlockedVotes[delegate][typeIndex]--;
+            __unlockedVotes[_newDelegate][typeIndex]++;
         } else {
-            __lockedVotes[bucket.delegate][bucket.typeIndex]--;
-            __lockedVotes[_delegate][bucket.typeIndex]++;
+            __lockedVotes[delegate][typeIndex]--;
+            __lockedVotes[_newDelegate][typeIndex]++;
         }
-        bucket.delegate = _delegate;
+        _bucket.delegate = _newDelegate;
     }
 
     function _setEmergencyWithdrawPenaltyRate(uint256 _rate) internal {
