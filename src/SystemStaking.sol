@@ -23,22 +23,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     event BucketTypeActivated(uint256 amount, uint256 duration);
     event BucketTypeDeactivated(uint256 amount, uint256 duration);
-    event Staked(
-        uint256 indexed tokenId,
-        bytes12 indexed delegate,
-        uint256 amount,
-        uint256 duration
-    );
+    event Staked(uint256 indexed tokenId, bytes12 delegate, uint256 amount, uint256 duration);
     event Locked(uint256 indexed tokenId, uint256 duration);
     event Unlocked(uint256 indexed tokenId);
     event Unstaked(uint256 indexed tokenId);
+    event Merged(uint256[] indexed tokenIds, uint256 amount, uint256 duration);
     event DurationExtended(uint256 indexed tokenId, uint256 duration);
     event AmountIncreased(uint256 indexed tokenId, uint256 amount);
-    event DelegateChanged(
-        uint256 indexed tokenId,
-        bytes12 indexed oldDelegate,
-        bytes12 indexed newDelegate
-    );
+    event DelegateChanged(uint256 indexed tokenId, bytes12 newDelegate);
     event Withdrawal(uint256 indexed tokenId, address indexed recipient);
     event EmergencyWithdrawal(
         uint256 indexed tokenId,
@@ -46,6 +38,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 penaltyFee
     );
     event FeeWithdrawal(address indexed recipient, uint256 amount);
+    event EmergencyWithdrawPenaltyRateUpdated(uint256 rate);
 
     modifier onlyTokenOwner(uint256 _tokenId) {
         _assertOnlyTokenOwner(_tokenId);
@@ -71,7 +64,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     constructor() ERC721("BucketNFT", "BKT") {
         __nextTokenId = 1;
-        __emergencyWithdrawPenaltyRate = 100;
+        _setEmergencyWithdrawPenaltyRate(100);
     }
 
     function pause() external onlyOwner {
@@ -90,8 +83,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function setEmergencyWithdrawPenaltyRate(uint256 _rate) external onlyOwner {
-        require(_rate <= 100, "invaid penalty rate");
-        __emergencyWithdrawPenaltyRate = _rate;
+        _setEmergencyWithdrawPenaltyRate(_rate);
     }
 
     function emergencyWithdrawPenaltyRate() external view returns (uint256) {
@@ -233,10 +225,11 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function unlock(uint256[] calldata _tokenIds) external whenNotPaused {
         uint256 tokenId;
+        BucketInfo storage bucket;
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             tokenId = _tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
-            BucketInfo storage bucket = __buckets[tokenId];
+            bucket = __buckets[tokenId];
             _assertOnlyLockedToken(bucket);
             _unlock(bucket);
             emit Unlocked(tokenId);
@@ -255,10 +248,11 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function lock(uint256[] calldata _tokenIds, uint256 _duration) external whenNotPaused {
         uint256 tokenId;
+        BucketInfo storage bucket;
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             tokenId = _tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
-            BucketInfo storage bucket = __buckets[tokenId];
+            bucket = __buckets[tokenId];
             _assertOnlyStakedToken(bucket);
             _lock(bucket, _duration);
             emit Locked(tokenId, _duration);
@@ -302,6 +296,38 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         emit EmergencyWithdrawal(_tokenId, _recipient, fee);
     }
 
+    function merge(
+        uint256[] calldata tokenIds,
+        uint256 _newDuration
+    ) external payable whenNotPaused {
+        require(tokenIds.length > 1, "invalid length");
+        uint256 amount = msg.value;
+        uint256 tokenId;
+        BucketInfo storage bucket;
+        BucketType storage bucketType;
+        for (uint256 i = tokenIds.length; i > 0; i--) {
+            tokenId = tokenIds[i - 1];
+            _assertOnlyTokenOwner(tokenId);
+            bucket = __buckets[tokenId];
+            _assertOnlyStakedToken(bucket);
+            bucketType = __bucketTypes[bucket.typeIndex];
+            require(_newDuration >= bucketType.duration, "invalid duration");
+            amount += bucketType.amount;
+            if (_isLocked(bucket)) {
+                __lockedVotes[bucket.delegate][bucket.typeIndex]--;
+            } else {
+                __unlockedVotes[bucket.delegate][bucket.typeIndex]--;
+            }
+            if (i != 1) {
+                _burn(tokenId);
+            } else {
+                bucket.unlockedAt = UINT256_MAX;
+                _updateBucketInfo(bucket, amount, _newDuration);
+                emit Merged(tokenIds, amount, _newDuration);
+            }
+        }
+    }
+
     function extendDuration(
         uint256 _tokenId,
         uint256 _newDuration
@@ -310,6 +336,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _assertOnlyLockedToken(bucket);
         BucketType storage bucketType = __bucketTypes[bucket.typeIndex];
         require(_newDuration > bucketType.duration, "invalid operation");
+        __lockedVotes[bucket.delegate][bucket.typeIndex]--;
         _updateBucketInfo(bucket, bucketType.amount, _newDuration);
         emit DurationExtended(_tokenId, _newDuration);
     }
@@ -322,6 +349,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _assertOnlyLockedToken(bucket);
         BucketType storage bucketType = __bucketTypes[bucket.typeIndex];
         require(msg.value + bucketType.amount == _newAmount, "invalid operation");
+        __lockedVotes[bucket.delegate][bucket.typeIndex]--;
         _updateBucketInfo(bucket, _newAmount, bucketType.duration);
         emit AmountIncreased(_tokenId, _newAmount);
     }
@@ -499,7 +527,6 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) internal {
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
-        __lockedVotes[bucket.delegate][bucket.typeIndex]--;
         __lockedVotes[bucket.delegate][index]++;
         bucket.typeIndex = index;
     }
@@ -518,7 +545,13 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             __unlockedVotes[bucket.delegate][bucket.typeIndex]--;
             __unlockedVotes[_delegate][bucket.typeIndex]++;
         }
-        emit DelegateChanged(_tokenId, bucket.delegate, _delegate);
         bucket.delegate = _delegate;
+        emit DelegateChanged(_tokenId, _delegate);
+    }
+
+    function _setEmergencyWithdrawPenaltyRate(uint256 _rate) internal {
+        require(_rate <= 100, "invaid penalty rate");
+        __emergencyWithdrawPenaltyRate = _rate;
+        emit EmergencyWithdrawPenaltyRateUpdated(_rate);
     }
 }

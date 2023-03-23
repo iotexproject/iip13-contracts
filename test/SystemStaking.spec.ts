@@ -694,6 +694,87 @@ describe("SystemStaking", () => {
             })
         })
 
+        describe("merge", () => {
+            let tokenIds: BigNumber[]
+            beforeEach(async () => {
+                tokenIds = new Array<BigNumber>(10)
+                await system.connect(owner).addBucketType(ONE_ETHER.mul(11), ONE_DAY * 2)
+                for (let i = 0; i < 10; i++) {
+                    tokenIds[i] = await createBucket(
+                        system,
+                        staker,
+                        ONE_ETHER,
+                        ONE_DAY,
+                        DELEGATES[i % 2]
+                    )
+                }
+            })
+            it("invalid amount", async () => {
+                await expect(
+                    system.connect(staker).merge(tokenIds, ONE_DAY * 2, { value: ONE_ETHER.sub(1) })
+                ).to.be.revertedWith("invalid bucket type")
+            })
+            it("invalid duration", async () => {
+                await expect(
+                    system.connect(staker).merge(tokenIds, ONE_DAY, { value: ONE_ETHER })
+                ).to.be.revertedWith("invalid bucket type")
+            })
+            it("not owner", async () => {
+                await expect(
+                    system.connect(owner).merge(tokenIds, ONE_DAY * 2, { value: ONE_ETHER })
+                ).to.be.revertedWith("not owner")
+            })
+            it("with invaid token id", async () => {
+                tokenIds[1] = 1000
+                await expect(
+                    system.connect(staker).merge(tokenIds, ONE_DAY * 2, { value: ONE_ETHER })
+                ).to.be.revertedWith("ERC721: invalid token ID")
+            })
+            it("with unstaked bucket", async () => {
+                await system.connect(staker)["unlock(uint256)"](tokenIds[2])
+                await advanceBy(BigNumber.from(ONE_DAY))
+                await system.connect(staker).unstake(tokenIds[2])
+                await expect(
+                    system.connect(staker).merge(tokenIds, ONE_DAY * 2, { value: ONE_ETHER })
+                ).to.be.revertedWith("not a staked token")
+            })
+            it("with duplicate buckets", async () => {
+                tokenIds[0] = tokenIds[1]
+                await expect(
+                    system.connect(staker).merge(tokenIds, ONE_DAY * 2, { value: ONE_ETHER })
+                ).to.be.revertedWith("ERC721: invalid token ID")
+            })
+            describe("success", () => {
+                it("all locked buckets", async () => {})
+                it("with first unlocked bucket", async () => {
+                    await system.connect(staker)["unlock(uint256)"](tokenIds[0])
+                })
+                it("with multiple unlocked buckets", async () => {
+                    await system.connect(staker)["unlock(uint256)"](tokenIds[0])
+                    await system.connect(staker)["unlock(uint256)"](tokenIds[2])
+                    await system.connect(staker)["unlock(uint256)"](tokenIds[5])
+                })
+                it("with multiple unlocked buckets II", async () => {
+                    await system.connect(staker)["unlock(uint256)"](tokenIds[4])
+                    await system.connect(staker)["unlock(uint256)"](tokenIds[3])
+                    await system.connect(staker)["unlock(uint256)"](tokenIds[5])
+                })
+                afterEach(async () => {
+                    await expect(
+                        system.connect(staker).merge(tokenIds, ONE_DAY * 2, { value: ONE_ETHER })
+                    ).to.emit(system.connect(staker), "Merged")
+                    for (let i = 1; i < tokenIds.length; i++) {
+                        assertNotExist(system, tokenIds[i])
+                    }
+                    const bucket = await system.bucketOf(tokenIds[0])
+                    expect(bucket.duration_).to.equal(ONE_DAY * 2)
+                    expect(bucket.amount_).to.equal(ONE_ETHER.mul(11))
+                    expect(bucket.delegate_).to.equal(DELEGATES[0])
+                    expect(bucket.unlockedAt_).to.equal(UINT256_MAX)
+                    expect(bucket.unstakedAt_).to.equal(UINT256_MAX)
+                })
+            })
+        })
         describe("extend duration", () => {
             let tokenId: BigNumber
             beforeEach(async () => {
@@ -837,7 +918,7 @@ describe("SystemStaking", () => {
             it("locked", async () => {
                 await expect(system.connect(staker).changeDelegate(tokenId, DELEGATES[2]))
                     .to.emit(system.connect(staker), "DelegateChanged")
-                    .withArgs(tokenId, DELEGATES[0], DELEGATES[2])
+                    .withArgs(tokenId, DELEGATES[2])
                 const bucket = await system.bucketOf(tokenId)
                 expect(bucket.delegate_).to.equal(DELEGATES[2])
             })
