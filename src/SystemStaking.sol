@@ -46,7 +46,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     // token id
-    uint256 private __nextTokenId;
+    uint256 private __currTokenId;
     // mapping from token ID to bucket
     mapping(uint256 => BucketInfo) private __buckets;
     // delegate name -> bucket type -> count
@@ -63,7 +63,6 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     uint256 private __accumulatedWithdrawFee;
 
     constructor() ERC721("BucketNFT", "BKT") {
-        __nextTokenId = 1;
         _setEmergencyWithdrawPenaltyRate(100);
     }
 
@@ -175,10 +174,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 _duration,
         bytes12 _delegate
     ) external payable whenNotPaused returns (uint256) {
-        uint256 index = _bucketTypeIndex(msg.value, _duration);
+        uint256 msgValue = msg.value;
+        uint256 index = _bucketTypeIndex(msgValue, _duration);
         _assertOnlyActiveBucketType(index);
 
-        return _stake(index, msg.value, _duration, _delegate);
+        uint256 tokenId = _stake(index, _delegate);
+        emit Staked(tokenId, _delegate, msgValue, _duration);
+
+        return tokenId;
     }
 
     function stake(
@@ -192,7 +195,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
         tokenIds_ = new uint256[](_delegates.length);
         for (uint256 i = 0; i < _delegates.length; i++) {
-            tokenIds_[i] = _stake(index, _amount, _duration, _delegates[i]);
+            tokenIds_[i] = _stake(index, _delegates[i]);
+            emit Staked(tokenIds_[i], _delegates[i], _amount, _duration);
         }
 
         return tokenIds_;
@@ -204,13 +208,15 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         bytes12 _delegate,
         uint256 _count
     ) external payable whenNotPaused returns (uint256[] memory tokenIds_) {
-        require(_count > 0 && _amount * _count == msg.value, "invalid parameters");
+        uint256 msgValue = msg.value;
+        require(_count > 0 && _amount * _count == msgValue, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
 
         tokenIds_ = new uint256[](_count);
         for (uint256 i = 0; i < _count; i++) {
-            tokenIds_[i] = _stake(index, _amount, _duration, _delegate);
+            tokenIds_[i] = _stake(index, _delegate);
+            emit Staked(tokenIds_[i], _delegate, msgValue, _duration);
         }
 
         return tokenIds_;
@@ -267,6 +273,20 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         emit Unstaked(_tokenId);
     }
 
+    function unstake(uint256[] calldata _tokenIds) external whenNotPaused {
+        uint256 tokenId;
+        BucketInfo storage bucket;
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            tokenId = _tokenIds[i];
+            _assertOnlyTokenOwner(tokenId);
+            bucket = __buckets[tokenId];
+            _assertOnlyStakedToken(bucket);
+            require(_blocksToUnstake(bucket) == 0, "not ready to unstake");
+            _unstake(bucket);
+            emit Unstaked(tokenId);
+        }
+    }
+
     function withdraw(
         uint256 _tokenId,
         address payable _recipient
@@ -278,18 +298,33 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         emit Withdrawal(_tokenId, _recipient);
     }
 
+    function withdraw(
+        uint256[] calldata _tokenIds,
+        address payable _recipient
+    ) external whenNotPaused {
+        uint256 tokenId;
+        BucketInfo storage bucket;
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            tokenId = _tokenIds[i];
+            _assertOnlyTokenOwner(tokenId);
+            bucket = __buckets[tokenId];
+            require(_blocksToWithdraw(bucket.unstakedAt) == 0, "not ready to withdraw");
+            _burn(tokenId);
+            _withdraw(bucket, _recipient, 0);
+            emit Withdrawal(tokenId, _recipient);
+        }
+    }
+
     function emergencyWithdraw(
         uint256 _tokenId,
         address payable _recipient
     ) external onlyTokenOwner(_tokenId) {
         BucketInfo storage bucket = __buckets[_tokenId];
-        if (_isLocked(bucket)) {
+        if (!_isTriggered(bucket.unlockedAt)) {
             _unlock(bucket);
-            // emit Unlocked(_tokenId);
         }
-        if (_isInStake(bucket)) {
+        if (!_isTriggered(bucket.unstakedAt)) {
             _unstake(bucket);
-            // emit Unstaked(_tokenId);
         }
         _burn(_tokenId);
         uint256 fee = _withdraw(bucket, _recipient, __emergencyWithdrawPenaltyRate);
@@ -313,10 +348,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             bucketType = __bucketTypes[bucket.typeIndex];
             require(_newDuration >= bucketType.duration, "invalid duration");
             amount += bucketType.amount;
-            if (_isLocked(bucket)) {
-                __lockedVotes[bucket.delegate][bucket.typeIndex]--;
-            } else {
+            if (_isTriggered(bucket.unlockedAt)) {
                 __unlockedVotes[bucket.delegate][bucket.typeIndex]--;
+            } else {
+                __lockedVotes[bucket.delegate][bucket.typeIndex]--;
             }
             if (i != 1) {
                 _burn(tokenId);
@@ -354,16 +389,21 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         emit AmountIncreased(_tokenId, _newAmount);
     }
 
-    function changeDelegate(uint256 _tokenId, bytes12 _delegate) external whenNotPaused {
-        _changeDelegate(_tokenId, _delegate);
+    function changeDelegate(uint256 _tokenId, bytes12 _delegate) external whenNotPaused onlyTokenOwner(_tokenId) {
+        _changeDelegate(__buckets[_tokenId], _delegate);
+        emit DelegateChanged(_tokenId, _delegate);
     }
 
     function changeDelegates(
         uint256[] calldata _tokenIds,
         bytes12 _delegate
     ) external whenNotPaused {
+        uint256 tokenId;
         for (uint256 i = 0; i < _tokenIds.length; i++) {
-            _changeDelegate(_tokenIds[i], _delegate);
+            tokenId = _tokenIds[i];
+            _assertOnlyTokenOwner(tokenId);
+            _changeDelegate(__buckets[tokenId], _delegate);
+            emit DelegateChanged(tokenId, _delegate);
         }
     }
 
@@ -412,12 +452,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return __bucketTypes[_index].activatedAt <= block.number;
     }
 
-    function _isInStake(BucketInfo storage bucket) internal view returns (bool) {
-        return bucket.unstakedAt == UINT256_MAX;
-    }
-
-    function _isLocked(BucketInfo storage bucket) internal view returns (bool) {
-        return bucket.unlockedAt == UINT256_MAX;
+    function _isTriggered(uint256 _value) internal pure returns (bool) {
+        return _value != UINT256_MAX;
     }
 
     function _assertOnlyTokenOwner(uint256 _tokenId) internal view {
@@ -425,11 +461,11 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function _assertOnlyLockedToken(BucketInfo storage _bucket) internal view {
-        require(_isLocked(_bucket), "not a locked token");
+        require(!_isTriggered(_bucket.unlockedAt), "not a locked token");
     }
 
     function _assertOnlyStakedToken(BucketInfo storage _bucket) internal view {
-        require(_isInStake(_bucket), "not a staked token");
+        require(!_isTriggered(_bucket.unstakedAt), "not a staked token");
     }
 
     function _assertOnlyValidToken(uint256 _tokenId) internal view {
@@ -448,14 +484,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) internal override {
         require(batchSize == 1, "batch transfer is not supported");
         require(
-            _to == address(0) || _isInStake(__buckets[_firstTokenId]),
+            _to == address(0) || !_isTriggered(__buckets[_firstTokenId].unstakedAt),
             "cannot transfer unstaked token"
         );
         super._beforeTokenTransfer(_from, _to, _firstTokenId, batchSize);
     }
 
     function _blocksToWithdraw(uint256 unstakedAt) internal view returns (uint256) {
-        require(unstakedAt != UINT256_MAX, "not an unstaked bucket");
+        require(_isTriggered(unstakedAt), "not an unstaked bucket");
         if (unstakedAt + (3 * 24 * 60 * 60) / 5 < block.number) {
             return 0;
         }
@@ -464,7 +500,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function _blocksToUnstake(BucketInfo storage _bucket) internal view returns (uint256) {
-        require(_bucket.unlockedAt != UINT256_MAX, "not an unlocked bucket");
+        require(_isTriggered(_bucket.unlockedAt), "not an unlocked bucket");
         uint256 duration = __bucketTypes[_bucket.typeIndex].duration;
         if (_bucket.unlockedAt + duration < block.number) {
             return 0;
@@ -474,16 +510,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function _stake(
         uint256 _index,
-        uint256 _amount,
-        uint256 _duration,
         bytes12 _delegate
     ) internal returns (uint256) {
-        __buckets[__nextTokenId] = BucketInfo(_index, UINT256_MAX, UINT256_MAX, _delegate);
+        __currTokenId++;
+        __buckets[__currTokenId] = BucketInfo(_index, UINT256_MAX, UINT256_MAX, _delegate);
         __lockedVotes[_delegate][_index]++;
-        _safeMint(msg.sender, __nextTokenId);
-        emit Staked(__nextTokenId, _delegate, _amount, _duration);
+        _safeMint(msg.sender, __currTokenId);
 
-        return __nextTokenId++;
+        return __currTokenId;
     }
 
     function _unlock(BucketInfo storage _bucket) internal {
@@ -532,21 +566,19 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function _changeDelegate(
-        uint256 _tokenId,
+        BucketInfo storage bucket,
         bytes12 _delegate
-    ) internal onlyTokenOwner(_tokenId) {
-        BucketInfo storage bucket = __buckets[_tokenId];
+    ) internal {
         _assertOnlyStakedToken(bucket);
         require(bucket.delegate != _delegate, "invalid operation");
-        if (_isLocked(bucket)) {
-            __lockedVotes[bucket.delegate][bucket.typeIndex]--;
-            __lockedVotes[_delegate][bucket.typeIndex]++;
-        } else {
+        if (_isTriggered(bucket.unlockedAt)) {
             __unlockedVotes[bucket.delegate][bucket.typeIndex]--;
             __unlockedVotes[_delegate][bucket.typeIndex]++;
+        } else {
+            __lockedVotes[bucket.delegate][bucket.typeIndex]--;
+            __lockedVotes[_delegate][bucket.typeIndex]++;
         }
         bucket.delegate = _delegate;
-        emit DelegateChanged(_tokenId, _delegate);
     }
 
     function _setEmergencyWithdrawPenaltyRate(uint256 _rate) internal {
