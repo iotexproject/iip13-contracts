@@ -393,7 +393,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         emit AmountIncreased(_tokenId, _newAmount);
     }
 
-    function changeDelegate(uint256 _tokenId, bytes12 _delegate) external whenNotPaused onlyTokenOwner(_tokenId) {
+    function changeDelegate(
+        uint256 _tokenId,
+        bytes12 _delegate
+    ) external whenNotPaused onlyTokenOwner(_tokenId) {
         _changeDelegate(__buckets[_tokenId], _delegate);
         emit DelegateChanged(_tokenId, _delegate);
     }
@@ -513,10 +516,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return unlockedAt + duration - block.number;
     }
 
-    function _stake(
-        uint256 _index,
-        bytes12 _delegate
-    ) internal returns (uint256) {
+    function _stake(uint256 _index, bytes12 _delegate) internal returns (uint256) {
         __currTokenId++;
         __buckets[__currTokenId] = BucketInfo(_index, UINT256_MAX, UINT256_MAX, _delegate);
         __lockedVotes[_delegate][_index]++;
@@ -574,10 +574,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _bucket.typeIndex = index;
     }
 
-    function _changeDelegate(
-        BucketInfo storage _bucket,
-        bytes12 _newDelegate
-    ) internal {
+    function _changeDelegate(BucketInfo storage _bucket, bytes12 _newDelegate) internal {
         _assertOnlyStakedToken(_bucket);
         uint256 typeIndex = _bucket.typeIndex;
         bytes12 delegate = _bucket.delegate;
