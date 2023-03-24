@@ -178,7 +178,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 index = _bucketTypeIndex(msgValue, _duration);
         _assertOnlyActiveBucketType(index);
 
-        uint256 tokenId = _stake(index, _delegate);
+        _stake(index, _delegate);
+        uint256 tokenId = __currTokenId;
         emit Staked(tokenId, _delegate, msgValue, _duration);
 
         return tokenId;
@@ -188,18 +189,17 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 _amount,
         uint256 _duration,
         bytes12[] memory _delegates
-    ) external payable whenNotPaused returns (uint256[] memory tokenIds_) {
+    ) external payable whenNotPaused returns (uint256 firstTokenId_) {
         require(_amount * _delegates.length == msg.value, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
-
-        tokenIds_ = new uint256[](_delegates.length);
+        firstTokenId_ = __currTokenId + 1;
         for (uint256 i = 0; i < _delegates.length; i++) {
-            tokenIds_[i] = _stake(index, _delegates[i]);
-            emit Staked(tokenIds_[i], _delegates[i], _amount, _duration);
+            _stake(index, _delegates[i]);
+            emit Staked(firstTokenId_ + i, _delegates[i], _amount, _duration);
         }
 
-        return tokenIds_;
+        return firstTokenId_;
     }
 
     function stake(
@@ -207,19 +207,18 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 _duration,
         bytes12 _delegate,
         uint256 _count
-    ) external payable whenNotPaused returns (uint256[] memory tokenIds_) {
+    ) external payable whenNotPaused returns (uint256 firstTokenId_) {
         uint256 msgValue = msg.value;
         require(_count > 0 && _amount * _count == msgValue, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
-
-        tokenIds_ = new uint256[](_count);
+        firstTokenId_ = __currTokenId + 1;
         for (uint256 i = 0; i < _count; i++) {
-            tokenIds_[i] = _stake(index, _delegate);
-            emit Staked(tokenIds_[i], _delegate, msgValue, _duration);
+            _stake(index, _delegate);
+            emit Staked(firstTokenId_ + i, _delegate, msgValue, _duration);
         }
 
-        return tokenIds_;
+        return firstTokenId_;
     }
 
     function unlock(uint256 _tokenId) external whenNotPaused onlyTokenOwner(_tokenId) {
@@ -516,13 +515,11 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return unlockedAt + duration - block.number;
     }
 
-    function _stake(uint256 _index, bytes12 _delegate) internal returns (uint256) {
+    function _stake(uint256 _index, bytes12 _delegate) internal {
         __currTokenId++;
         __buckets[__currTokenId] = BucketInfo(_index, UINT256_MAX, UINT256_MAX, _delegate);
         __lockedVotes[_delegate][_index]++;
         _safeMint(msg.sender, __currTokenId);
-
-        return __currTokenId;
     }
 
     function _unlock(BucketInfo storage _bucket) internal {
