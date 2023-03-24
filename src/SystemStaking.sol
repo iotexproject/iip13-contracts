@@ -20,6 +20,7 @@ struct BucketType {
 
 contract SystemStaking is ERC721, Ownable, Pausable {
     uint256 public constant UINT256_MAX = type(uint256).max;
+    uint256 public constant UNSTAKE_FREEZE_BLOCKS = 51840; // (3 * 24 * 60 * 60) / 5;
 
     event BucketTypeActivated(uint256 amount, uint256 duration);
     event BucketTypeDeactivated(uint256 amount, uint256 duration);
@@ -74,6 +75,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _unpause();
     }
 
+    function unsafeInc(uint256 x) private pure returns (uint256) {
+        unchecked { return x + 1; }
+    }
+
+    function unsafeDec(uint256 x) private pure returns (uint256) {
+        unchecked { return x - 1; }
+    }
+
     // emergency withdraw functions
     function withdrawFee(uint256 _amount, address payable _recipient) external onlyOwner {
         __accumulatedWithdrawFee -= _amount;
@@ -126,8 +135,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) external view returns (BucketType[] memory types_) {
         require(_size > 0 && _offset + _size <= numOfBucketTypes(), "invalid parameters");
         types_ = new BucketType[](_size);
-        for (uint256 i = 0; i < _size; i++) {
-            types_[i] = __bucketTypes[_offset + i];
+        for (uint256 i = 0; i < _size; i = unsafeInc(i)) {
+            unchecked {
+                types_[i] = __bucketTypes[_offset + i];
+            }
         }
     }
 
@@ -193,8 +204,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         require(_amount * _delegates.length == msg.value, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
-        firstTokenId_ = __currTokenId + 1;
-        for (uint256 i = 0; i < _delegates.length; i++) {
+        unchecked {
+            firstTokenId_ = __currTokenId + 1;
+        }
+        for (uint256 i = 0; i < _delegates.length; i = unsafeInc(i)) {
             _stake(index, _delegates[i]);
             emit Staked(firstTokenId_ + i, _delegates[i], _amount, _duration);
         }
@@ -212,8 +225,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         require(_count > 0 && _amount * _count == msgValue, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
-        firstTokenId_ = __currTokenId + 1;
-        for (uint256 i = 0; i < _count; i++) {
+        unchecked {
+            firstTokenId_ = __currTokenId + 1;
+        }
+        for (uint256 i = 0; i < _count; i = unsafeInc(i)) {
             _stake(index, _delegate);
             emit Staked(firstTokenId_ + i, _delegate, msgValue, _duration);
         }
@@ -231,7 +246,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     function unlock(uint256[] calldata _tokenIds) external whenNotPaused {
         uint256 tokenId;
         BucketInfo storage bucket;
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
+        for (uint256 i = 0; i < _tokenIds.length; i = unsafeInc(i)) {
             tokenId = _tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
             bucket = __buckets[tokenId];
@@ -254,7 +269,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     function lock(uint256[] calldata _tokenIds, uint256 _duration) external whenNotPaused {
         uint256 tokenId;
         BucketInfo storage bucket;
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
+        for (uint256 i = 0; i < _tokenIds.length; i = unsafeInc(i)) {
             tokenId = _tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
             bucket = __buckets[tokenId];
@@ -275,7 +290,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     function unstake(uint256[] calldata _tokenIds) external whenNotPaused {
         uint256 tokenId;
         BucketInfo storage bucket;
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
+        for (uint256 i = 0; i < _tokenIds.length; i = unsafeInc(i)) {
             tokenId = _tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
             bucket = __buckets[tokenId];
@@ -303,7 +318,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) external whenNotPaused {
         uint256 tokenId;
         BucketInfo storage bucket;
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
+        for (uint256 i = 0; i < _tokenIds.length; i = unsafeInc(i)) {
             tokenId = _tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
             bucket = __buckets[tokenId];
@@ -339,8 +354,9 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 tokenId;
         BucketInfo storage bucket;
         BucketType storage bucketType;
-        for (uint256 i = tokenIds.length; i > 0; i--) {
-            tokenId = tokenIds[i - 1];
+        for (uint256 i = tokenIds.length; i > 0;) {
+            i = unsafeDec(i);
+            tokenId = tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
             bucket = __buckets[tokenId];
             _assertOnlyStakedToken(bucket);
@@ -350,11 +366,11 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             require(_newDuration >= bucketType.duration, "invalid duration");
             amount += bucketType.amount;
             if (_isTriggered(bucket.unlockedAt)) {
-                __unlockedVotes[delegate][typeIndex]--;
+                __unlockedVotes[delegate][typeIndex] = unsafeDec(__unlockedVotes[delegate][typeIndex]);
             } else {
-                __lockedVotes[delegate][typeIndex]--;
+                __lockedVotes[delegate][typeIndex] = unsafeDec(__lockedVotes[delegate][typeIndex]);
             }
-            if (i != 1) {
+            if (i != 0) {
                 _burn(tokenId);
             } else {
                 bucket.unlockedAt = UINT256_MAX;
@@ -373,7 +389,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 typeIndex = bucket.typeIndex;
         BucketType storage bucketType = __bucketTypes[typeIndex];
         require(_newDuration > bucketType.duration, "invalid operation");
-        __lockedVotes[bucket.delegate][typeIndex]--;
+        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(__lockedVotes[bucket.delegate][typeIndex]);
         _updateBucketInfo(bucket, bucketType.amount, _newDuration);
         emit DurationExtended(_tokenId, _newDuration);
     }
@@ -387,7 +403,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 typeIndex = bucket.typeIndex;
         BucketType storage bucketType = __bucketTypes[typeIndex];
         require(msg.value + bucketType.amount == _newAmount, "invalid operation");
-        __lockedVotes[bucket.delegate][typeIndex]--;
+        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(__lockedVotes[bucket.delegate][typeIndex]);
         _updateBucketInfo(bucket, _newAmount, bucketType.duration);
         emit AmountIncreased(_tokenId, _newAmount);
     }
@@ -405,7 +421,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         bytes12 _delegate
     ) external whenNotPaused {
         uint256 tokenId;
-        for (uint256 i = 0; i < _tokenIds.length; i++) {
+        for (uint256 i = 0; i < _tokenIds.length; i = unsafeInc(i)) {
             tokenId = _tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
             _changeDelegate(__buckets[tokenId], _delegate);
@@ -418,10 +434,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) external view returns (uint256[][] memory counts_) {
         counts_ = new uint256[][](_delegates.length);
         uint256 tl = numOfBucketTypes();
-        for (uint256 i = 0; i < _delegates.length; i++) {
+        for (uint256 i = 0; i < _delegates.length; i = unsafeInc(i)) {
             counts_[i] = new uint256[](tl);
             mapping(uint256 => uint256) storage votes = __lockedVotes[_delegates[i]];
-            for (uint256 j = 0; j < tl; j++) {
+            for (uint256 j = 0; j < tl; j = unsafeInc(j)) {
                 counts_[i][j] = votes[j];
             }
         }
@@ -434,10 +450,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) external view returns (uint256[][] memory counts_) {
         counts_ = new uint256[][](_delegates.length);
         uint256 tl = numOfBucketTypes();
-        for (uint256 i = 0; i < _delegates.length; i++) {
+        for (uint256 i = 0; i < _delegates.length; i = unsafeInc(i)) {
             counts_[i] = new uint256[](tl);
             mapping(uint256 => uint256) storage votes = __unlockedVotes[_delegates[i]];
-            for (uint256 j = 0; j < tl; j++) {
+            for (uint256 j = 0; j < tl; j = unsafeInc(j)) {
                 counts_[i][j] = votes[j];
             }
         }
@@ -451,7 +467,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 index = __bucketTypeIndices[_amount][_duration];
         require(index > 0, "invalid bucket type");
 
-        return index - 1;
+        return unsafeDec(index);
     }
 
     function _isActiveBucketType(uint256 _index) internal view returns (bool) {
@@ -498,27 +514,32 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function _blocksToWithdraw(uint256 _unstakedAt) internal view returns (uint256) {
         require(_isTriggered(_unstakedAt), "not an unstaked bucket");
-        if (_unstakedAt + (3 * 24 * 60 * 60) / 5 < block.number) {
+        uint256 withdrawBlock = _unstakedAt + UNSTAKE_FREEZE_BLOCKS;
+        if (withdrawBlock <= block.number) {
             return 0;
         }
 
-        return _unstakedAt + (3 * 24 * 60 * 60) / 5 - block.number;
+        unchecked {
+            return withdrawBlock - block.number;
+        }
     }
 
     function _blocksToUnstake(BucketInfo storage _bucket) internal view returns (uint256) {
         uint256 unlockedAt = _bucket.unlockedAt;
         require(_isTriggered(unlockedAt), "not an unlocked bucket");
-        uint256 duration = __bucketTypes[_bucket.typeIndex].duration;
-        if (unlockedAt + duration < block.number) {
+        uint256 unstakeBlock = unlockedAt + __bucketTypes[_bucket.typeIndex].duration;
+        if (unstakeBlock <= block.number) {
             return 0;
         }
-        return unlockedAt + duration - block.number;
+        unchecked {
+            return unstakeBlock - block.number;
+        }
     }
 
     function _stake(uint256 _index, bytes12 _delegate) internal {
-        __currTokenId++;
+        __currTokenId = unsafeInc(__currTokenId);
         __buckets[__currTokenId] = BucketInfo(_index, UINT256_MAX, UINT256_MAX, _delegate);
-        __lockedVotes[_delegate][_index]++;
+        __lockedVotes[_delegate][_index] = unsafeInc(__lockedVotes[_delegate][_index]);
         _safeMint(msg.sender, __currTokenId);
     }
 
@@ -526,8 +547,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 typeIndex = _bucket.typeIndex;
         bytes12 delegate = _bucket.delegate;
         _bucket.unlockedAt = block.number;
-        __lockedVotes[delegate][typeIndex]--;
-        __unlockedVotes[delegate][typeIndex]++;
+        __lockedVotes[delegate][typeIndex] = unsafeDec(__lockedVotes[delegate][typeIndex]);
+        __unlockedVotes[delegate][typeIndex] = unsafeInc(__unlockedVotes[delegate][typeIndex]);
     }
 
     function _lock(BucketInfo storage _bucket, uint256 _duration) internal {
@@ -537,14 +558,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 newIndex = _bucketTypeIndex(__bucketTypes[typeIndex].amount, _duration);
         _assertOnlyActiveBucketType(newIndex);
         _bucket.unlockedAt = UINT256_MAX;
-        __unlockedVotes[delegate][typeIndex]--;
+        __unlockedVotes[delegate][typeIndex] = unsafeDec(__unlockedVotes[delegate][typeIndex]);
         _bucket.typeIndex = newIndex;
-        __lockedVotes[delegate][newIndex]++;
+        __lockedVotes[delegate][newIndex] = unsafeInc(__lockedVotes[delegate][newIndex]);
     }
 
     function _unstake(BucketInfo storage _bucket) internal {
         _bucket.unstakedAt = block.number;
-        __unlockedVotes[_bucket.delegate][_bucket.typeIndex]--;
+        __unlockedVotes[_bucket.delegate][_bucket.typeIndex] = unsafeDec(__unlockedVotes[_bucket.delegate][_bucket.typeIndex]);
     }
 
     function _withdraw(
@@ -567,7 +588,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     ) internal {
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
-        __lockedVotes[_bucket.delegate][index]++;
+        __lockedVotes[_bucket.delegate][index] = unsafeInc(__lockedVotes[_bucket.delegate][index]);
         _bucket.typeIndex = index;
     }
 
@@ -577,11 +598,11 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         bytes12 delegate = _bucket.delegate;
         require(delegate != _newDelegate, "invalid operation");
         if (_isTriggered(_bucket.unlockedAt)) {
-            __unlockedVotes[delegate][typeIndex]--;
-            __unlockedVotes[_newDelegate][typeIndex]++;
+            __unlockedVotes[delegate][typeIndex] = unsafeDec(__unlockedVotes[delegate][typeIndex]);
+            __unlockedVotes[_newDelegate][typeIndex] = unsafeInc(__unlockedVotes[_newDelegate][typeIndex]);
         } else {
-            __lockedVotes[delegate][typeIndex]--;
-            __lockedVotes[_newDelegate][typeIndex]++;
+            __lockedVotes[delegate][typeIndex] = unsafeDec(__lockedVotes[delegate][typeIndex]);
+            __lockedVotes[_newDelegate][typeIndex] = unsafeInc(__lockedVotes[_newDelegate][typeIndex]);
         }
         _bucket.delegate = _newDelegate;
     }
