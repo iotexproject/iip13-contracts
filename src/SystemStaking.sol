@@ -76,11 +76,15 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     }
 
     function unsafeInc(uint256 x) private pure returns (uint256) {
-        unchecked { return x + 1; }
+        unchecked {
+            return x + 1;
+        }
     }
 
     function unsafeDec(uint256 x) private pure returns (uint256) {
-        unchecked { return x - 1; }
+        unchecked {
+            return x - 1;
+        }
     }
 
     // emergency withdraw functions
@@ -354,7 +358,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 tokenId;
         BucketInfo storage bucket;
         BucketType storage bucketType;
-        for (uint256 i = tokenIds.length; i > 0;) {
+        for (uint256 i = tokenIds.length; i > 0; ) {
             i = unsafeDec(i);
             tokenId = tokenIds[i];
             _assertOnlyTokenOwner(tokenId);
@@ -366,7 +370,9 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             require(_newDuration >= bucketType.duration, "invalid duration");
             amount += bucketType.amount;
             if (_isTriggered(bucket.unlockedAt)) {
-                __unlockedVotes[delegate][typeIndex] = unsafeDec(__unlockedVotes[delegate][typeIndex]);
+                __unlockedVotes[delegate][typeIndex] = unsafeDec(
+                    __unlockedVotes[delegate][typeIndex]
+                );
             } else {
                 __lockedVotes[delegate][typeIndex] = unsafeDec(__lockedVotes[delegate][typeIndex]);
             }
@@ -389,7 +395,9 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 typeIndex = bucket.typeIndex;
         BucketType storage bucketType = __bucketTypes[typeIndex];
         require(_newDuration > bucketType.duration, "invalid operation");
-        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(__lockedVotes[bucket.delegate][typeIndex]);
+        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(
+            __lockedVotes[bucket.delegate][typeIndex]
+        );
         _updateBucketInfo(bucket, bucketType.amount, _newDuration);
         emit DurationExtended(_tokenId, _newDuration);
     }
@@ -403,7 +411,9 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         uint256 typeIndex = bucket.typeIndex;
         BucketType storage bucketType = __bucketTypes[typeIndex];
         require(msg.value + bucketType.amount == _newAmount, "invalid operation");
-        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(__lockedVotes[bucket.delegate][typeIndex]);
+        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(
+            __lockedVotes[bucket.delegate][typeIndex]
+        );
         _updateBucketInfo(bucket, _newAmount, bucketType.duration);
         emit AmountIncreased(_tokenId, _newAmount);
     }
@@ -565,7 +575,9 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function _unstake(BucketInfo storage _bucket) internal {
         _bucket.unstakedAt = block.number;
-        __unlockedVotes[_bucket.delegate][_bucket.typeIndex] = unsafeDec(__unlockedVotes[_bucket.delegate][_bucket.typeIndex]);
+        __unlockedVotes[_bucket.delegate][_bucket.typeIndex] = unsafeDec(
+            __unlockedVotes[_bucket.delegate][_bucket.typeIndex]
+        );
     }
 
     function _withdraw(
@@ -599,10 +611,14 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         require(delegate != _newDelegate, "invalid operation");
         if (_isTriggered(_bucket.unlockedAt)) {
             __unlockedVotes[delegate][typeIndex] = unsafeDec(__unlockedVotes[delegate][typeIndex]);
-            __unlockedVotes[_newDelegate][typeIndex] = unsafeInc(__unlockedVotes[_newDelegate][typeIndex]);
+            __unlockedVotes[_newDelegate][typeIndex] = unsafeInc(
+                __unlockedVotes[_newDelegate][typeIndex]
+            );
         } else {
             __lockedVotes[delegate][typeIndex] = unsafeDec(__lockedVotes[delegate][typeIndex]);
-            __lockedVotes[_newDelegate][typeIndex] = unsafeInc(__lockedVotes[_newDelegate][typeIndex]);
+            __lockedVotes[_newDelegate][typeIndex] = unsafeInc(
+                __lockedVotes[_newDelegate][typeIndex]
+            );
         }
         _bucket.delegate = _newDelegate;
     }
