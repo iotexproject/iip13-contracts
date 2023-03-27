@@ -891,6 +891,116 @@ describe("SystemStaking", () => {
                     }
                 })
             })
+
+            describe("unstake", () => {
+                it("not owner", async () => {
+                    await system.connect(staker)["unlock(uint256[])"](tokenIds)
+                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await expect(
+                        system.connect(alice)["unstake(uint256[])"](tokenIds)
+                    ).to.be.revertedWith("not owner")
+                })
+                it("locked", async () => {
+                    await expect(
+                        system.connect(staker)["unstake(uint256[])"](tokenIds)
+                    ).to.be.revertedWith("not an unlocked bucket")
+                })
+                it("not reached the stake duration", async () => {
+                    for (let i = 0; i < tokenIds.length; i++) {
+                        await system.connect(staker)["unlock(uint256)"](tokenIds[i])
+                    }
+                    await expect(
+                        system.connect(staker)["unstake(uint256[])"](tokenIds)
+                    ).to.be.revertedWith("not ready to unstake")
+                })
+                it("success", async () => {
+                    for (let i = 0; i < tokenIds.length; i++) {
+                        await system.connect(staker)["unlock(uint256)"](tokenIds[i])
+                    }
+                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await expect(system.connect(staker)["unstake(uint256[])"](tokenIds)).to.emit(
+                        system,
+                        "Unstaked"
+                    )
+                    for (let i = 0; i < tokenIds.length; i++) {
+                        const bucket = await system.bucketOf(tokenIds[i])
+                        expect(bucket.unstakedAt_).to.equal(await ethers.provider.getBlockNumber())
+                    }
+                })
+            })
+
+            describe("withdraw", () => {
+                it("not owner", async () => {
+                    await system.connect(staker)["unlock(uint256[])"](tokenIds)
+                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await system.connect(staker)["unstake(uint256[])"](tokenIds)
+                    await expect(
+                        system
+                            .connect(alice)
+                            ["withdraw(uint256[],address)"](tokenIds, staker.address)
+                    ).to.be.revertedWith("not owner")
+                })
+                it("locked", async () => {
+                    await expect(
+                        system
+                            .connect(staker)
+                            ["withdraw(uint256[],address)"](tokenIds, staker.address)
+                    ).to.be.revertedWith("not an unstaked bucket")
+                })
+                it("staked", async () => {
+                    for (let i = 0; i < tokenIds.length; i++) {
+                        await system.connect(staker)["unlock(uint256)"](tokenIds[i])
+                    }
+                    await expect(
+                        system
+                            .connect(staker)
+                            ["withdraw(uint256[],address)"](tokenIds, staker.address)
+                    ).to.be.revertedWith("not an unstaked bucket")
+                })
+                it("unstaked but not ready", async () => {
+                    for (let i = 0; i < tokenIds.length; i++) {
+                        await system.connect(staker)["unlock(uint256)"](tokenIds[i])
+                    }
+                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await system.connect(staker)["unstake(uint256[])"](tokenIds)
+                    await expect(
+                        system
+                            .connect(staker)
+                            ["withdraw(uint256[],address)"](tokenIds, staker.address)
+                    ).to.be.revertedWith("not ready to withdraw")
+                })
+                it("unstaked but not ready II", async () => {
+                    for (let i = 0; i < tokenIds.length; i++) {
+                        await system.connect(staker)["unlock(uint256)"](tokenIds[i])
+                    }
+                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await system.connect(staker)["unstake(uint256[])"](tokenIds)
+                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await expect(
+                        system
+                            .connect(staker)
+                            ["withdraw(uint256[],address)"](tokenIds, staker.address)
+                    ).to.be.revertedWith("not ready to withdraw")
+                })
+                it("success", async () => {
+                    await system.connect(staker)["unlock(uint256[])"](tokenIds)
+                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await system.connect(staker)["unstake(uint256[])"](tokenIds)
+                    await advanceBy(BigNumber.from(ONE_DAY * 3))
+                    await expect(
+                        system
+                            .connect(staker)
+                            ["withdraw(uint256[],address)"](tokenIds, staker.address)
+                    )
+                        .to.changeEtherBalance(staker.address, ONE_ETHER.mul(tokenIds.length))
+                        .to.emit(system, "Withdrawal")
+                    for (let i = 0; i < tokenIds.length; i++) {
+                        await expect(system.bucketOf(tokenIds[i])).to.be.revertedWith(
+                            "ERC721: invalid token ID"
+                        )
+                    }
+                })
+            })
         })
         describe("extend duration", () => {
             let tokenId: BigNumber
