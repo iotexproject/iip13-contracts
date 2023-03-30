@@ -970,12 +970,10 @@ describe("SystemStaking", () => {
                     ).to.be.revertedWith("not ready to withdraw")
                 })
                 it("unstaked but not ready II", async () => {
-                    for (let i = 0; i < tokenIds.length; i++) {
-                        await system.connect(staker)["unlock(uint256)"](tokenIds[i])
-                    }
+                    await system.connect(staker)["unlock(uint256[])"](tokenIds)
                     await advanceBy(BigNumber.from(ONE_DAY))
                     await system.connect(staker)["unstake(uint256[])"](tokenIds)
-                    await advanceBy(BigNumber.from(ONE_DAY))
+                    await advanceBy(BigNumber.from(ONE_DAY * 3 - 2))
                     await expect(
                         system
                             .connect(staker)
