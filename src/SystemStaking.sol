@@ -90,7 +90,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     // emergency withdraw functions
     function withdrawFee(uint256 _amount, address payable _recipient) external onlyOwner {
         __accumulatedWithdrawFee -= _amount;
-        _recipient.transfer(_amount);
+        (bool success, ) = _recipient.call{value: _amount}("");
+        require(success, "failed to transfer");
         emit FeeWithdrawal(_recipient, _amount);
     }
 
@@ -154,7 +155,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return _blocksToUnstake(bucket);
     }
 
-    function blocksToWithdraw(uint256 _tokenId) public view returns (uint256) {
+    function blocksToWithdraw(uint256 _tokenId) external view returns (uint256) {
         _assertOnlyValidToken(_tokenId);
         return _blocksToWithdraw(__buckets[_tokenId].unstakedAt);
     }
@@ -225,8 +226,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         bytes12 _delegate,
         uint256 _count
     ) external payable whenNotPaused returns (uint256 firstTokenId_) {
-        uint256 msgValue = msg.value;
-        require(_count > 0 && _amount * _count == msgValue, "invalid parameters");
+        require(_count > 0 && _amount * _count == msg.value, "invalid parameters");
         uint256 index = _bucketTypeIndex(_amount, _duration);
         _assertOnlyActiveBucketType(index);
         unchecked {
@@ -234,7 +234,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         }
         for (uint256 i = 0; i < _count; i = unsafeInc(i)) {
             _stake(index, _delegate);
-            emit Staked(firstTokenId_ + i, _delegate, msgValue, _duration);
+            emit Staked(firstTokenId_ + i, _delegate, _amount, _duration);
         }
 
         return firstTokenId_;
@@ -590,7 +590,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             fee_ = (amount * _penaltyRate) / 100;
             __accumulatedWithdrawFee += fee_;
         }
-        _recipient.transfer(amount - fee_);
+        (bool success, ) = _recipient.call{value: amount - fee_}("");
+        require(success, "failed to transfer");
     }
 
     function _updateBucketInfo(
