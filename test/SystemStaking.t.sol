@@ -29,28 +29,6 @@ contract SystemStakingTest is Test {
         assertEq(system.name(), "BucketNFT");
         assertEq(system.symbol(), "BKT");
         assertEq(system.owner(), owner);
-        assertEq(system.emergencyWithdrawPenaltyRate(), 100);
-    }
-
-    function testSetEmergencyWithdrawPenaltyRate() public {
-        assertEq(system.emergencyWithdrawPenaltyRate(), 100);
-
-        vm.prank(owner);
-        system.setEmergencyWithdrawPenaltyRate(90);
-
-        assertEq(system.emergencyWithdrawPenaltyRate(), 90);
-    }
-
-    function testCannotSetEmergencyWithdrawPenaltyRate() public {
-        vm.expectRevert("Ownable: caller is not the owner");
-        system.setEmergencyWithdrawPenaltyRate(90);
-
-        vm.expectRevert();
-        vm.prank(owner);
-        vm.expectRevert("invalid penalty rate");
-        system.setEmergencyWithdrawPenaltyRate(1000);
-
-        assertEq(system.emergencyWithdrawPenaltyRate(), 100);
     }
 
     function testaddBucketType() public {

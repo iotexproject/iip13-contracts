@@ -33,13 +33,6 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     event AmountIncreased(uint256 indexed tokenId, uint256 amount);
     event DelegateChanged(uint256 indexed tokenId, bytes12 newDelegate);
     event Withdrawal(uint256 indexed tokenId, address indexed recipient);
-    event EmergencyWithdrawal(
-        uint256 indexed tokenId,
-        address indexed recipient,
-        uint256 penaltyFee
-    );
-    event FeeWithdrawal(address indexed recipient, uint256 amount);
-    event EmergencyWithdrawPenaltyRateUpdated(uint256 rate);
 
     modifier onlyTokenOwner(uint256 _tokenId) {
         _assertOnlyTokenOwner(_tokenId);
@@ -58,13 +51,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     BucketType[] private __bucketTypes;
     // amount -> duration -> index
     mapping(uint256 => mapping(uint256 => uint256)) private __bucketTypeIndices;
-    // emergency withdraw penalty rate
-    uint256 private __emergencyWithdrawPenaltyRate;
-    // accumulated fee for emergency withdraw
-    uint256 private __accumulatedWithdrawFee;
 
     constructor() ERC721("BucketNFT", "BKT") {
-        _setEmergencyWithdrawPenaltyRate(100);
     }
 
     function pause() external onlyOwner {
@@ -85,26 +73,6 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         unchecked {
             return x - 1;
         }
-    }
-
-    // emergency withdraw functions
-    function withdrawFee(uint256 _amount, address payable _recipient) external onlyOwner {
-        __accumulatedWithdrawFee -= _amount;
-        (bool success, ) = _recipient.call{value: _amount}("");
-        require(success, "failed to transfer");
-        emit FeeWithdrawal(_recipient, _amount);
-    }
-
-    function setEmergencyWithdrawPenaltyRate(uint256 _rate) external onlyOwner {
-        _setEmergencyWithdrawPenaltyRate(_rate);
-    }
-
-    function emergencyWithdrawPenaltyRate() external view returns (uint256) {
-        return __emergencyWithdrawPenaltyRate;
-    }
-
-    function accumulatedWithdrawFee() external view returns (uint256) {
-        return __accumulatedWithdrawFee;
     }
 
     // bucket type related functions
@@ -312,7 +280,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         BucketInfo storage bucket = __buckets[_tokenId];
         require(_blocksToWithdraw(bucket.unstakedAt) == 0, "not ready to withdraw");
         _burn(_tokenId);
-        _withdraw(bucket, _recipient, 0);
+        _withdraw(bucket, _recipient);
         emit Withdrawal(_tokenId, _recipient);
     }
 
@@ -328,25 +296,9 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             bucket = __buckets[tokenId];
             require(_blocksToWithdraw(bucket.unstakedAt) == 0, "not ready to withdraw");
             _burn(tokenId);
-            _withdraw(bucket, _recipient, 0);
+            _withdraw(bucket, _recipient);
             emit Withdrawal(tokenId, _recipient);
         }
-    }
-
-    function emergencyWithdraw(
-        uint256 _tokenId,
-        address payable _recipient
-    ) external onlyTokenOwner(_tokenId) {
-        BucketInfo storage bucket = __buckets[_tokenId];
-        if (!_isTriggered(bucket.unlockedAt)) {
-            _unlock(bucket);
-        }
-        if (!_isTriggered(bucket.unstakedAt)) {
-            _unstake(bucket);
-        }
-        _burn(_tokenId);
-        uint256 fee = _withdraw(bucket, _recipient, __emergencyWithdrawPenaltyRate);
-        emit EmergencyWithdrawal(_tokenId, _recipient, fee);
     }
 
     function merge(
@@ -582,15 +534,10 @@ contract SystemStaking is ERC721, Ownable, Pausable {
 
     function _withdraw(
         BucketInfo storage _bucket,
-        address payable _recipient,
-        uint256 _penaltyRate
-    ) internal returns (uint256 fee_) {
+        address payable _recipient
+    ) internal {
         uint256 amount = __bucketTypes[_bucket.typeIndex].amount;
-        if (_penaltyRate != 0) {
-            fee_ = (amount * _penaltyRate) / 100;
-            __accumulatedWithdrawFee += fee_;
-        }
-        (bool success, ) = _recipient.call{value: amount - fee_}("");
+        (bool success, ) = _recipient.call{value: amount}("");
         require(success, "failed to transfer");
     }
 
@@ -622,11 +569,5 @@ contract SystemStaking is ERC721, Ownable, Pausable {
             );
         }
         _bucket.delegate = _newDelegate;
-    }
-
-    function _setEmergencyWithdrawPenaltyRate(uint256 _rate) internal {
-        require(_rate <= 100, "invaid penalty rate");
-        __emergencyWithdrawPenaltyRate = _rate;
-        emit EmergencyWithdrawPenaltyRateUpdated(_rate);
     }
 }
