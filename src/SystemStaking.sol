@@ -52,8 +52,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     // amount -> duration -> index
     mapping(uint256 => mapping(uint256 => uint256)) private __bucketTypeIndices;
 
-    constructor() ERC721("BucketNFT", "BKT") {
-    }
+    constructor() ERC721("BucketNFT", "BKT") {}
 
     function pause() external onlyOwner {
         _pause();
@@ -432,6 +431,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         return unsafeDec(index);
     }
 
+    // bucket type index `_index` must be valid
     function _isActiveBucketType(uint256 _index) internal view returns (bool) {
         return __bucketTypes[_index].activatedAt <= block.number;
     }
@@ -532,10 +532,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         );
     }
 
-    function _withdraw(
-        BucketInfo storage _bucket,
-        address payable _recipient
-    ) internal {
+    function _withdraw(BucketInfo storage _bucket, address payable _recipient) internal {
         uint256 amount = __bucketTypes[_bucket.typeIndex].amount;
         (bool success, ) = _recipient.call{value: amount}("");
         require(success, "failed to transfer");
