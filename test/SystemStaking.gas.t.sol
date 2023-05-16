@@ -12,13 +12,13 @@ contract SystemStakingGasTest is Test {
 
     address internal owner;
     address internal alice;
-    bytes12[] internal delegates10;
-    bytes12[] internal delegates20;
-    bytes12[] internal delegates50;
-    bytes12[] internal delegates100;
-    bytes12[] internal delegates200;
-    bytes12[] internal delegates500;
-    bytes12[] internal delegates1000;
+    address[] internal delegates10;
+    address[] internal delegates20;
+    address[] internal delegates50;
+    address[] internal delegates100;
+    address[] internal delegates200;
+    address[] internal delegates500;
+    address[] internal delegates1000;
     uint256[] internal tokenIds10;
     uint256[] internal tokenIds20;
     uint256[] internal tokenIds50;
@@ -30,13 +30,13 @@ contract SystemStakingGasTest is Test {
     function setUp() public {
         owner = vm.addr(0x1);
         alice = vm.addr(0x2);
-        delegates10 = new bytes12[](10);
-        delegates20 = new bytes12[](20);
-        delegates50 = new bytes12[](50);
-        delegates100 = new bytes12[](100);
-        delegates200 = new bytes12[](200);
-        delegates500 = new bytes12[](500);
-        delegates1000 = new bytes12[](1000);
+        delegates10 = new address[](10);
+        delegates20 = new address[](20);
+        delegates50 = new address[](50);
+        delegates100 = new address[](100);
+        delegates200 = new address[](200);
+        delegates500 = new address[](500);
+        delegates1000 = new address[](1000);
 
         tokenIds10 = new uint256[](10);
         tokenIds20 = new uint256[](20);
@@ -58,7 +58,7 @@ contract SystemStakingGasTest is Test {
         vm.startPrank(alice);
         vm.deal(alice, 20000 ether);
         for (uint24 i = 0; i < 1000; i++) {
-            bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate_", i)));
+            address delegate = vm.addr(0x3 + i);
             if (i < 10) {
                 delegates10[i] = delegate;
                 tokenIds10[i] = i + 1;

@@ -13,9 +13,9 @@ const createBucket = async (
     staker: SignerWithAddress,
     amount: BigNumberish,
     duration: BigNumberish,
-    delegate: BytesLike
+    delegate: string
 ): Promise<BigNumber> => {
-    const tx = await system.connect(staker)["stake(uint256,bytes12)"](duration, delegate, {
+    const tx = await system.connect(staker)["stake(uint256,address)"](duration, delegate, {
         value: amount,
     })
     const receipt = await tx.wait()
@@ -27,12 +27,12 @@ const createBuckets = async (
     staker: SignerWithAddress,
     amount: BigNumberish,
     duration: BigNumberish,
-    delegate: BytesLike,
+    delegate: string,
     count: BigNumberish
 ): Promise<BigNumber[]> => {
     const tx = await system
         .connect(staker)
-        ["stake(uint256,uint256,bytes12,uint256)"](amount, duration, delegate, count, {
+        ["stake(uint256,uint256,address,uint256)"](amount, duration, delegate, count, {
             value: BigNumber.from(amount).mul(count),
         })
     const receipt = await tx.wait()
@@ -48,11 +48,11 @@ const createBucketsForDelegates = async (
     staker: SignerWithAddress,
     amount: BigNumberish,
     duration: BigNumberish,
-    delegates: BytesLike[]
+    delegates: string[]
 ): Promise<BigNumber[]> => {
     const tx = await system
         .connect(staker)
-        ["stake(uint256,uint256,bytes12[])"](amount, duration, delegates, {
+        ["stake(uint256,uint256,address[])"](amount, duration, delegates, {
             value: BigNumber.from(amount).mul(delegates.length),
         })
     const receipt = await tx.wait()
@@ -67,9 +67,9 @@ const UINT256_MAX = ethers.BigNumber.from(
     "115792089237316195423570985008687907853269984665640564039457584007913129639935"
 )
 const DELEGATES = [
-    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789012")),
-    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789013")),
-    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789014")),
+    ethers.Wallet.createRandom().address,
+    ethers.Wallet.createRandom().address,
+    ethers.Wallet.createRandom().address,
 ]
 
 const ONE_DAY = 86400 / 5
@@ -304,7 +304,7 @@ describe("SystemStaking", () => {
                 })
                 it("should emit Staked", async () => {
                     await expect(
-                        system.connect(staker)["stake(uint256,bytes12)"](ONE_DAY, DELEGATES[0], {
+                        system.connect(staker)["stake(uint256,address)"](ONE_DAY, DELEGATES[0], {
                             value: ONE_ETHER,
                         })
                     )
@@ -500,14 +500,14 @@ describe("SystemStaking", () => {
                     await expect(
                         system
                             .connect(staker)
-                            ["stake(uint256,uint256,bytes12[])"](ONE_ETHER, ONE_DAY, DELEGATES, {
+                            ["stake(uint256,uint256,address[])"](ONE_ETHER, ONE_DAY, DELEGATES, {
                                 value: BigNumber.from(ONE_ETHER).mul(DELEGATES.length).sub(1),
                             })
                     ).to.be.revertedWith("invalid parameters")
                     await expect(
                         system
                             .connect(staker)
-                            ["stake(uint256,uint256,bytes12,uint256)"](
+                            ["stake(uint256,uint256,address,uint256)"](
                                 ONE_ETHER,
                                 ONE_DAY,
                                 DELEGATES[0],
@@ -585,8 +585,8 @@ describe("SystemStaking", () => {
 
             it("after change delegate", async () => {
                 const delegates = [
-                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789018")),
-                    ethers.utils.hexlify(ethers.utils.toUtf8Bytes("123456789019")),
+                    ethers.Wallet.createRandom().address,
+                    ethers.Wallet.createRandom().address,
                 ]
                 const tokenId = await createBucket(system, staker, ONE_ETHER, ONE_DAY, delegates[0])
                 await system.connect(staker).changeDelegate(tokenId, delegates[1])

@@ -77,9 +77,9 @@ contract SystemStakingTest is Test {
         vm.deal(alice, 100 ether);
         vm.startPrank(alice);
 
-        bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate")));
+        address delegate = vm.addr(0x10);
 
-        bytes12[] memory delegates = new bytes12[](3);
+        address[] memory delegates = new address[](3);
         delegates[0] = delegate;
         delegates[1] = delegate;
         delegates[2] = delegate;
@@ -99,7 +99,7 @@ contract SystemStakingTest is Test {
         vm.deal(alice, 100 ether);
         vm.startPrank(alice);
 
-        bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate")));
+        address delegate = vm.addr(0x10);
 
         uint256 tokenId = system.stake{value: 1 ether}(1 days, delegate);
         assertEq(tokenId, 1);
@@ -139,7 +139,7 @@ contract SystemStakingTest is Test {
         assertEq(system.isActiveBucketType(1 ether, 1 days), true);
         assertEq(system.isActiveBucketType(1 ether, 1 days), true);
 
-        bytes12 delegate = bytes12(bytes(abi.encodePacked("delegate")));
+        address delegate = vm.addr(0x10);
 
         vm.prank(alice);
         uint256 tokenId = system.stake{value: 1 ether}(1 days, delegate);
