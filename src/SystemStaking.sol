@@ -31,6 +31,7 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     event Merged(uint256[] tokenIds, uint256 amount, uint256 duration);
     event DurationExtended(uint256 indexed tokenId, uint256 duration);
     event AmountIncreased(uint256 indexed tokenId, uint256 amount);
+    event BucketExpanded(uint256 indexed tokenId, uint256 amount, uint256 duration);
     event DelegateChanged(uint256 indexed tokenId, address newDelegate);
     event Withdrawal(uint256 indexed tokenId, address indexed recipient);
 
@@ -367,6 +368,24 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         );
         _updateBucketInfo(bucket, _newAmount, bucketType.duration);
         emit AmountIncreased(_tokenId, _newAmount);
+    }
+
+    function expandBucket(
+        uint256 _tokenId,
+        uint256 _newAmount,
+        uint256 _newDuration
+    ) external payable whenNotPaused onlyTokenOwner(_tokenId) {
+        BucketInfo storage bucket = __buckets[_tokenId];
+        _assertOnlyLockedToken(bucket);
+        uint256 typeIndex = bucket.typeIndex;
+        BucketType storage bucketType = __bucketTypes[typeIndex];
+        require(_newDuration > bucketType.duration, "invalid duration");
+        require(msg.value > 0 && msg.value + bucketType.amount == _newAmount, "invalid amount");
+        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(
+            __lockedVotes[bucket.delegate][typeIndex]
+        );
+        _updateBucketInfo(bucket, _newAmount, _newDuration);
+        emit BucketExpanded(_tokenId, _newAmount, _newDuration);
     }
 
     function changeDelegate(
