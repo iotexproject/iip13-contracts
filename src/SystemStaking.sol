@@ -29,8 +29,6 @@ contract SystemStaking is ERC721, Ownable, Pausable {
     event Unlocked(uint256 indexed tokenId);
     event Unstaked(uint256 indexed tokenId);
     event Merged(uint256[] tokenIds, uint256 amount, uint256 duration);
-    event DurationExtended(uint256 indexed tokenId, uint256 duration);
-    event AmountIncreased(uint256 indexed tokenId, uint256 amount);
     event BucketExpanded(uint256 indexed tokenId, uint256 amount, uint256 duration);
     event DelegateChanged(uint256 indexed tokenId, address newDelegate);
     event Withdrawal(uint256 indexed tokenId, address indexed recipient);
@@ -338,38 +336,6 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         }
     }
 
-    function extendDuration(
-        uint256 _tokenId,
-        uint256 _newDuration
-    ) external whenNotPaused onlyTokenOwner(_tokenId) {
-        BucketInfo storage bucket = __buckets[_tokenId];
-        _assertOnlyLockedToken(bucket);
-        uint256 typeIndex = bucket.typeIndex;
-        BucketType storage bucketType = __bucketTypes[typeIndex];
-        require(_newDuration > bucketType.duration, "invalid operation");
-        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(
-            __lockedVotes[bucket.delegate][typeIndex]
-        );
-        _updateBucketInfo(bucket, bucketType.amount, _newDuration);
-        emit DurationExtended(_tokenId, _newDuration);
-    }
-
-    function increaseAmount(
-        uint256 _tokenId,
-        uint256 _newAmount
-    ) external payable whenNotPaused onlyTokenOwner(_tokenId) {
-        BucketInfo storage bucket = __buckets[_tokenId];
-        _assertOnlyLockedToken(bucket);
-        uint256 typeIndex = bucket.typeIndex;
-        BucketType storage bucketType = __bucketTypes[typeIndex];
-        require(msg.value + bucketType.amount == _newAmount, "invalid operation");
-        __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(
-            __lockedVotes[bucket.delegate][typeIndex]
-        );
-        _updateBucketInfo(bucket, _newAmount, bucketType.duration);
-        emit AmountIncreased(_tokenId, _newAmount);
-    }
-
     function expandBucket(
         uint256 _tokenId,
         uint256 _newAmount,
@@ -379,8 +345,8 @@ contract SystemStaking is ERC721, Ownable, Pausable {
         _assertOnlyLockedToken(bucket);
         uint256 typeIndex = bucket.typeIndex;
         BucketType storage bucketType = __bucketTypes[typeIndex];
-        require(_newDuration > bucketType.duration, "invalid duration");
-        require(msg.value > 0 && msg.value + bucketType.amount == _newAmount, "invalid amount");
+        require(_newDuration >= bucketType.duration, "invalid duration");
+        require(msg.value >= 0 && msg.value + bucketType.amount == _newAmount, "invalid amount");
         __lockedVotes[bucket.delegate][typeIndex] = unsafeDec(
             __lockedVotes[bucket.delegate][typeIndex]
         );
