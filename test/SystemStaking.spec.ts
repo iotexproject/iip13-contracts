@@ -932,7 +932,11 @@ describe("SystemStaking", () => {
                 })
 
                 it("success", async () => {
-                    await expect(system.connect(staker).expandBucket(tokenId, ONE_ETHER, duration, { value: 0}))
+                    await expect(
+                        system
+                            .connect(staker)
+                            .expandBucket(tokenId, ONE_ETHER, duration, { value: 0 })
+                    )
                         .to.emit(system.connect(staker), "BucketExpanded")
                         .withArgs(tokenId, ONE_ETHER, duration)
                     const bucket = await system.bucketOf(tokenId)
@@ -995,13 +999,17 @@ describe("SystemStaking", () => {
                 it("deactivated bucket type", async () => {
                     await system.connect(owner).deactivateBucketType(amount, ONE_DAY)
                     await expect(
-                        system.connect(staker).expandBucket(tokenId, amount, ONE_DAY, { value: ONE_ETHER })
+                        system
+                            .connect(staker)
+                            .expandBucket(tokenId, amount, ONE_DAY, { value: ONE_ETHER })
                     ).to.be.revertedWith("inactive bucket type")
                 })
 
                 it("success", async () => {
                     await expect(
-                        system.connect(staker).expandBucket(tokenId, amount, ONE_DAY, { value: ONE_ETHER })
+                        system
+                            .connect(staker)
+                            .expandBucket(tokenId, amount, ONE_DAY, { value: ONE_ETHER })
                     )
                         .to.emit(system.connect(staker), "BucketExpanded")
                         .withArgs(tokenId, amount, ONE_DAY)
@@ -1061,7 +1069,7 @@ describe("SystemStaking", () => {
                     await expect(
                         system
                             .connect(staker)
-                            .expandBucket(tokenId, amount, ONE_DAY*0.5, { value: ONE_ETHER })
+                            .expandBucket(tokenId, amount, ONE_DAY * 0.5, { value: ONE_ETHER })
                     ).to.be.revertedWith("invalid duration")
                 })
 
