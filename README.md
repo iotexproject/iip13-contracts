@@ -4,3 +4,6 @@ SystemStaking is the contract implemented for iip-13. It issues an NFT token for
 # Commands
 lint: `yarn lint:fix`
 test: `npx hardhat test`
+
+# Audits
+- SlowMist: https://github.com/slowmist/Knowledge-Base/blob/master/open-report-V2/smart-contract/SlowMist%20Audit%20Report%20-%20IoTeX%20-%20SystemStaking_en-us.pdf
