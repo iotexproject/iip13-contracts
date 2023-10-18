@@ -21,8 +21,8 @@ interface ISystemStaking {
     event Paused(address account);
     event Unpaused(address account);
     function paused() external view returns (bool);
-    function _pause() external;
-    function _unpause() external;
+    function pause() external;
+    function unpause() external;
 
     /* Ownable interface */
 
