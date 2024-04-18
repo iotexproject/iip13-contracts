@@ -16,7 +16,7 @@ struct Bucket {
 error ErrInvalidAmount();
 error ErrInvalidDuration();
 error ErrInvalidParameter();
-error ErrStakedBucketCannotBeWithdrawn();
+error ErrNotUnstakedBucket();
 error ErrNotOwner();
 error ErrNotReady();
 error ErrNotLockedBucket();
@@ -326,7 +326,7 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
 
     function _blocksToWithdraw(uint256 _unstakedAt) internal view returns (uint256) {
         if (!_isTriggered(_unstakedAt)) {
-            revert ErrStakedBucketCannotBeWithdrawn();
+            revert ErrNotUnstakedBucket();
         }
         uint256 withdrawBlock = _unstakedAt + UNSTAKE_FREEZE_BLOCKS;
         if (withdrawBlock <= block.number) {
