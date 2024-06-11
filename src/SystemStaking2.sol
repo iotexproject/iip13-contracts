@@ -51,6 +51,7 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
     mapping(uint256 => Bucket) private __buckets;
     // beneficiary of donation
     address payable public beneficiary;
+
     //// delegate address -> bucket type -> count
     constructor(uint256 _minAmount, address payable _beneficiary) ERC721("BucketNFT", "BKT") {
         MIN_AMOUNT = _minAmount;
@@ -148,10 +149,7 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         }
     }
 
-    function lock(
-        uint256 _bucketId,
-        uint256 _duration
-    ) external whenNotPaused {
+    function lock(uint256 _bucketId, uint256 _duration) external whenNotPaused {
         _assertDuration(_duration);
         _lock(_bucketId, _duration);
     }
@@ -241,19 +239,14 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         emit BucketExpanded(_bucketId, bucket.amount, _newDuration);
     }
 
-    function deposit(
-        uint256 _bucketId
-    ) external payable whenNotPaused {
+    function deposit(uint256 _bucketId) external payable whenNotPaused {
         Bucket storage bucket = __buckets[_bucketId];
         _assertInLock(bucket.unlockedAt);
         bucket.amount += msg.value;
         emit BucketExpanded(_bucketId, bucket.amount, bucket.duration);
     }
 
-    function changeDelegate(
-        uint256 _bucketId,
-        address _delegate
-    ) external whenNotPaused {
+    function changeDelegate(uint256 _bucketId, address _delegate) external whenNotPaused {
         _changeDelegate(_bucketId, _delegate);
     }
 
@@ -347,7 +340,10 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         }
     }
 
-    function _blocksToUnstake(uint256 _unlockedAt, uint256 _duration) internal view returns (uint256) {
+    function _blocksToUnstake(
+        uint256 _unlockedAt,
+        uint256 _duration
+    ) internal view returns (uint256) {
         if (!_isTriggered(_unlockedAt)) {
             return _duration;
         }
@@ -360,7 +356,11 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         }
     }
 
-    function _stake(uint256 _amount, uint256 _duration, address _delegate) internal returns (uint256) {
+    function _stake(
+        uint256 _amount,
+        uint256 _duration,
+        address _delegate
+    ) internal returns (uint256) {
         uint256 bucketId = __currBucketId = unsafeInc(__currBucketId);
         __buckets[bucketId] = Bucket(_amount, _duration, UINT256_MAX, UINT256_MAX, _delegate);
         _safeMint(msg.sender, bucketId);
@@ -368,7 +368,7 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         return bucketId;
     }
 
-    function _unlock(uint256 _bucketId) internal onlyBucketOwner(_bucketId)  {
+    function _unlock(uint256 _bucketId) internal onlyBucketOwner(_bucketId) {
         Bucket storage bucket = __buckets[_bucketId];
         _assertInLock(bucket.unlockedAt);
         bucket.unlockedAt = block.number;
@@ -396,7 +396,10 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         emit Unstaked(_bucketId);
     }
 
-    function _withdraw(uint256 _bucketId, address payable _recipient) internal onlyBucketOwner(_bucketId) {
+    function _withdraw(
+        uint256 _bucketId,
+        address payable _recipient
+    ) internal onlyBucketOwner(_bucketId) {
         Bucket storage bucket = __buckets[_bucketId];
         if (_blocksToWithdraw(bucket.unstakedAt) != 0) {
             revert ErrNotReady();
@@ -406,7 +409,10 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         emit Withdrawal(_bucketId, _recipient);
     }
 
-    function _changeDelegate(uint256 _bucketId, address _newDelegate) internal onlyBucketOwner(_bucketId) {
+    function _changeDelegate(
+        uint256 _bucketId,
+        address _newDelegate
+    ) internal onlyBucketOwner(_bucketId) {
         Bucket storage _bucket = __buckets[_bucketId];
         _assertInStake(_bucket.unstakedAt);
         if (_bucket.delegate == _newDelegate) {
