@@ -241,6 +241,15 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         emit BucketExpanded(_bucketId, bucket.amount, _newDuration);
     }
 
+    function deposit(
+        uint256 _bucketId
+    ) external payable whenNotPaused {
+        _assertDuration(_newDuration);
+        _assertInLock(bucket.unlockedAt);
+        bucket.amount += msg.value;
+        emit BucketExpanded(_bucketId, bucket.amount, bucket.duration);
+    }
+
     function changeDelegate(
         uint256 _bucketId,
         address _delegate
