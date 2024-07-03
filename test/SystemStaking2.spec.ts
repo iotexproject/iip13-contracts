@@ -411,12 +411,26 @@ describe("SystemStaking2", () => {
                     })
                 })
                 it('invalid duration', async () => {
-                    await expect(
-                        system.connect(staker)
-                            ["stake(uint256,uint256,address[])"](MIN_AMOUNT, MAX_DURATION + 1, DELEGATES, {
+                    [
+                        system.connect(staker)["stake(uint256,uint256,address[])"](
+                            MIN_AMOUNT,
+                            MAX_DURATION + 1,
+                            DELEGATES,
+                            {
                                 value: BigNumber.from(MIN_AMOUNT).mul(DELEGATES.length),
-                            })
-                    ).to.be.revertedWithCustomError(system, "ErrInvalidDuration")
+                            }
+                        ),
+                        system.connect(staker)["stake(uint256,uint256,address[])"](
+                            MIN_AMOUNT,
+                            DURATION_UNIT - 1,
+                            DELEGATES,
+                            {
+                                value: BigNumber.from(MIN_AMOUNT).mul(DELEGATES.length),
+                            }
+                        ),
+                    ].forEach(async element => {
+                        await expect(element).to.be.revertedWithCustomError(system, "ErrInvalidDuration")
+                    })
                 })
                 describe("success", () => {
                     const bucketNum = []

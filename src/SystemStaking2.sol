@@ -39,6 +39,7 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
     event DelegateChanged(uint256 indexed bucketId, address newDelegate);
     event Withdrawal(uint256 indexed bucketId, address indexed recipient);
     event Donated(uint256 indexed bucketId, address indexed beneficiary, uint256 amount);
+    event BeneficiaryChanged(address indexed beneficiary);
 
     modifier onlyBucketOwner(uint256 _bucketId) {
         _assertOnlyBucketOwner(_bucketId);
@@ -52,9 +53,8 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
     // beneficiary of donation
     address payable public beneficiary;
     //// delegate address -> bucket type -> count
-    constructor(uint256 _minAmount, address payable _beneficiary) ERC721("BucketNFT", "BKT") {
+    constructor(uint256 _minAmount) ERC721("BucketNFT", "BKT") {
         MIN_AMOUNT = _minAmount;
-        beneficiary = _beneficiary;
     }
 
     function pause() external onlyOwner {
@@ -257,10 +257,18 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
         }
     }
 
+    function setBeneficiary(address payable _beneficiary) external onlyOwner {
+        beneficiary = _beneficiary;
+        emit BeneficiaryChanged(_beneficiary);
+    }
+
     function donate(uint256 _bucketId, uint256 _amount) external onlyBucketOwner(_bucketId) {
+        if (beneficiary == address(0)) {
+            revert ErrInvalidParameter();
+        }
         Bucket storage bucket = __buckets[_bucketId];
         _assertInStake(bucket.unstakedAt);
-        if (bucket.amount < _amount || _amount == 0) {
+        if (bucket.amount - MIN_AMOUNT < _amount || _amount == 0) {
             revert ErrInvalidAmount();
         }
         bucket.amount -= _amount;
@@ -313,15 +321,6 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
 
     function _assertOnlyValidBucket(uint256 _bucketId) internal view {
         require(_exists(_bucketId), "ERC721: invalid token ID");
-    }
-
-    function _beforeTokenTransfer(
-        address _from,
-        address _to,
-        uint256 _firstTokenId,
-        uint256 _batchSize
-    ) internal override {
-        super._beforeTokenTransfer(_from, _to, _firstTokenId, _batchSize);
     }
 
     function _blocksToWithdraw(uint256 _unstakedAt) internal view returns (uint256) {
