@@ -7,6 +7,7 @@ import { advanceBy, duration } from "./utils"
 import { assert } from "console"
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs"
 import { token } from "../typechain/@openzeppelin/contracts"
+import { hexZeroPad } from "@ethersproject/bytes"
 
 const createBucket = async (
     system: SystemStaking2,
@@ -118,7 +119,7 @@ describe("SystemStaking2", () => {
     describe("owner", () => {
         beforeEach(async () => {
             const factory = await ethers.getContractFactory("SystemStaking2")
-            system = (await factory.deploy(MIN_AMOUNT, beneficiary.address)) as SystemStaking2
+            system = (await factory.deploy(MIN_AMOUNT)) as SystemStaking2
         })
 
         describe("pause", () => {
@@ -173,7 +174,7 @@ describe("SystemStaking2", () => {
     describe("stake flow", () => {
         beforeEach(async () => {
             const factory = await ethers.getContractFactory("SystemStaking2")
-            system = (await factory.deploy(MIN_AMOUNT, beneficiary.address)) as SystemStaking2
+            system = (await factory.deploy(MIN_AMOUNT)) as SystemStaking2
         })
 
         describe("create bucket", () => {
@@ -224,7 +225,7 @@ describe("SystemStaking2", () => {
         describe("normal withdraw", () => {
             let tokenId: BigNumber
             beforeEach(async () => {
-                tokenId = await createBucket(system, staker, MIN_AMOUNT, DURATION_UNIT, DELEGATES[0])
+                tokenId = await createBucket(system, staker, MIN_AMOUNT.mul(2).sub(1), DURATION_UNIT, DELEGATES[0])
                 await system.connect(staker).transferFrom(staker.address, alice.address, tokenId)
             })
             it("not owner", async () => {
@@ -255,34 +256,54 @@ describe("SystemStaking2", () => {
                     await system.connect(alice).blocksToUnstake(tokenId)
                 ).to.be.equal(DURATION_UNIT)
             })
-            describe("donate", () => {
+            describe("beneficiary", () => {
+                beforeEach(async () => {
+                    expect(await system.beneficiary()).to.be.equal(hexZeroPad(0, 20))
+                })
                 it("not owner", async () => {
                     await expect(
-                        system.connect(staker).donate(tokenId, MIN_AMOUNT.div(2))
+                        system.connect(alice).setBeneficiary(alice.address)
+                    ).to.be.revertedWith("Ownable: caller is not the owner")
+                })
+                it("success", async () => {
+                    await system.connect(owner).setBeneficiary(alice.address)
+                    expect(await system.beneficiary()).to.be.equal(alice.address)
+                    await system.connect(owner).setBeneficiary(beneficiary.address)
+                    expect(await system.beneficiary()).to.be.equal(beneficiary.address)
+                })
+            })
+            describe("donate", () => {
+                beforeEach(async () => {
+                    await system.setBeneficiary(beneficiary.address)
+                })
+                it("not owner", async () => {
+                    await expect(
+                        system.connect(staker).donate(tokenId, MIN_AMOUNT)
                     ).to.be.revertedWithCustomError(system, "ErrNotOwner")
                 })
                 it("invalid amount", async () => {
                     [
-                        system.connect(alice).donate(tokenId, MIN_AMOUNT.add(1)),
-                        system.connect(alice).donate(tokenId, 0)
+                        system.connect(alice).donate(tokenId, MIN_AMOUNT.mul(2).sub(1)),
+                        system.connect(alice).donate(tokenId, 0),
+                        system.connect(alice).donate(tokenId, MIN_AMOUNT),
                     ].forEach(async element => {
                         await expect(element).to.be.revertedWithCustomError(system, "ErrInvalidAmount")
                     })
                 })
                 it("lock & donate", async () => {
                     expect(
-                        await system.connect(alice).donate(tokenId, MIN_AMOUNT.div(4))
-                    ).to.emit(system, "Donated").withArgs(tokenId, MIN_AMOUNT.div(4))
+                        await system.connect(alice).donate(tokenId, MIN_AMOUNT.sub(1))
+                    ).to.emit(system, "Donated").withArgs(tokenId, MIN_AMOUNT.sub(1))
                     const bucket = await system.bucketOf(tokenId)
-                    expect(bucket.amount).to.equal(MIN_AMOUNT.mul(3).div(4))
+                    expect(bucket.amount).to.equal(MIN_AMOUNT)
                 })
                 it("unlock & donate", async () => {
                     await system.connect(alice)["unlock(uint256)"](tokenId)
                     expect(
-                        await system.connect(alice).donate(tokenId, MIN_AMOUNT.div(4))
-                    ).to.emit(system, "Donated").withArgs(tokenId, MIN_AMOUNT.div(4))
+                        await system.connect(alice).donate(tokenId, MIN_AMOUNT.sub(1))
+                    ).to.emit(system, "Donated").withArgs(tokenId, MIN_AMOUNT.sub(1))
                     const bucket = await system.bucketOf(tokenId)
-                    expect(bucket.amount).to.equal(MIN_AMOUNT.mul(3).div(4))
+                    expect(bucket.amount).to.equal(MIN_AMOUNT)
                 })
                 it("unstake & donate", async () => {
                     await system.connect(alice)["unlock(uint256)"](tokenId)
@@ -378,7 +399,7 @@ describe("SystemStaking2", () => {
                             await expect(
                                 await system.connect(alice)["withdraw(uint256,address)"](tokenId, staker.address)
                             )
-                                .to.changeEtherBalance(staker.address, MIN_AMOUNT)
+                                .to.changeEtherBalance(staker.address, MIN_AMOUNT.mul(2).sub(1))
                                 .to.emit(system.connect(alice), "Withdrawal")
                                 .withArgs(tokenId, staker.address)
                             await assertNotExist(system, tokenId)
