@@ -52,7 +52,7 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
     mapping(uint256 => Bucket) private __buckets;
     // beneficiary of donation
     address payable public beneficiary;
-    //// delegate address -> bucket type -> count
+
     constructor(uint256 _minAmount) ERC721("BucketNFT", "BKT") {
         MIN_AMOUNT = _minAmount;
     }
@@ -176,7 +176,7 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
     function withdraw(
         uint256 _bucketId,
         address payable _recipient
-    ) external whenNotPaused onlyBucketOwner(_bucketId) {
+    ) external whenNotPaused {
         _withdraw(_bucketId, _recipient);
     }
 
@@ -227,11 +227,6 @@ contract SystemStaking2 is ERC721, Ownable, Pausable {
     ) external payable whenNotPaused onlyBucketOwner(_bucketId) {
         _assertDuration(_newDuration);
         Bucket storage bucket = __buckets[_bucketId];
-        // TODO: review whether unlocked tokens could be expanded
-        // _assertInStake(bucket);
-        // if (_newDuration < _blocksToUnstake(bucket.unlockedAt, bucket.duration)) {
-        //     revert ErrInvalidDuration();
-        // }
         _assertInLock(bucket.unlockedAt);
         if (_newDuration < bucket.duration) {
             revert ErrInvalidDuration();
