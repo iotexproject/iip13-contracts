@@ -16,8 +16,7 @@ export async function increase(value: BigNumber) {
 }
 
 export async function latest() {
-    const block = await ethers.provider.getBlock("latest")
-    return BigNumber.from(block.timestamp)
+    return await ethers.provider.getBlock("latest")
 }
 
 export const duration = {

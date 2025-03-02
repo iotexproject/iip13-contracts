@@ -2,8 +2,8 @@ import { ethers } from "hardhat"
 import { expect } from "chai"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { BigNumber, BigNumberish, BytesLike } from "ethers"
-import { SystemStaking3 } from "../typechain"
-import { advanceBy, duration } from "./utils"
+import { SystemStaking2, SystemStaking3 } from "../typechain"
+import { advanceBy, latest } from "./utils"
 import { assert } from "console"
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs"
 import { token } from "../typechain/@openzeppelin/contracts"
@@ -105,6 +105,7 @@ const expectBucket = async (
 }
 
 describe("SystemStaking3", () => {
+    let legacy: SystemStaking2
     let system: SystemStaking3
 
     let owner: SignerWithAddress
@@ -119,7 +120,7 @@ describe("SystemStaking3", () => {
     describe("owner", () => {
         beforeEach(async () => {
             const factory = await ethers.getContractFactory("SystemStaking3")
-            system = (await factory.deploy(MIN_AMOUNT)) as SystemStaking3
+            system = (await factory.deploy(MIN_AMOUNT, "0x0000000000000000000000000000000000000000")) as SystemStaking3
         })
 
         describe("pause", () => {
@@ -171,10 +172,77 @@ describe("SystemStaking3", () => {
         })
     })
 
+    describe("migrate flow", () => {
+        beforeEach(async () => {
+            const legacyFactory = await ethers.getContractFactory("SystemStaking2")
+            legacy = (await legacyFactory.deploy(MIN_AMOUNT)) as SystemStaking2
+            const factory = await ethers.getContractFactory("SystemStaking3")
+            system = (await factory.deploy(MIN_AMOUNT, legacy.address)) as SystemStaking3
+            await expect(legacy.connect(staker)["stake(uint256,address)"](DURATION_UNIT, DELEGATES[0], {
+                value: MIN_AMOUNT,
+            })).to.emit(legacy, "Staked").withArgs(1, DELEGATES[0], MIN_AMOUNT, DURATION_UNIT)
+        })
+
+        describe("migrate invalid bucket", () => {
+            it("invalid token id", async () => {
+                await expect(system.connect(staker).migrateLegacyBucket(100)).to.be.revertedWith(
+                    "ERC721: invalid token ID"
+                )
+            })
+            it("not owner", async () => {
+                await expect(system.connect(alice).migrateLegacyBucket(1)).to.be.revertedWithCustomError(
+                    system,
+                    "ErrNotOwner"
+                )
+            })
+            it("not staked bucket", async () => {
+                await legacy.connect(staker)["unlock(uint256)"](1)
+                await advanceBy(BigNumber.from(DURATION_UNIT * 2))
+                await expect(legacy.connect(staker)["unstake(uint256)"](1))
+                    .to.emit(legacy, "Unstaked")
+                    .withArgs(1)
+                await expect(system.connect(staker).migrateLegacyBucket(1)).to.be.revertedWithCustomError(
+                    system,
+                    "ErrNotStakedBucket"
+                )
+            })
+            it("not locked bucket", async () => {
+                await legacy.connect(staker)["unlock(uint256)"](1)
+                await expect(system.connect(staker).migrateLegacyBucket(1)).to.be.revertedWithCustomError(
+                    system,
+                    "ErrNotLockedBucket"
+                )
+            })
+        })
+        it("migrate success", async () => {
+            await legacy.connect(staker).approve(system.address, 1)
+            const migration = await system.connect(staker).migrateLegacyBucket(1)
+            expect(migration).to.be.emit(system, "Migrated").withArgs(1)
+            expect(migration).to.be.emit(system, "Staked").withArgs(1, DELEGATES[0], MIN_AMOUNT, DURATION_UNIT * 5)
+            await expectBucket(system, 1, staker.address, MIN_AMOUNT, DURATION_UNIT * 5, DELEGATES[0], UINT256_MAX, UINT256_MAX)
+            expect(await legacy.ownerOf(1)).to.be.equal(system.address)
+            const unlock = await system.connect(staker)["unlock(uint256)"](1)
+            expect(unlock).to.be.emit(system, "Unlocked").withArgs(1)
+            expect(unlock).to.be.emit(legacy, "Unlocked").withArgs(1)
+            await expectBucket(legacy, 1, system.address, MIN_AMOUNT, DURATION_UNIT, DELEGATES[0], unlock.blockNumber, UINT256_MAX)
+            advanceBy(BigNumber.from(DURATION_UNIT))
+            await expect(system.connect(staker)["unstake(uint256)"](1)).to.be.revertedWithCustomError(system, "ErrNotReady")
+            await advanceBy(BigNumber.from(DURATION_UNIT * 5))
+            const unstake = await system.connect(staker)["unstake(uint256)"](1)
+            expect(unstake).to.emit(system, "Unstaked").withArgs(1)
+            expect(unstake).to.emit(legacy, "Unstaked").withArgs(1)
+            await advanceBy(BigNumber.from(DURATION_UNIT * 3 + 1))
+
+            const withdrawn = await system.connect(staker)["withdraw(uint256,address)"](1, staker.address)
+            expect(withdrawn).to.emit(legacy, "Withdrawal").withArgs(1, system.address)
+            expect(withdrawn).to.emit(system, "Withdrawal").withArgs(1, staker.address)
+        })
+    })
+
     describe("stake flow", () => {
         beforeEach(async () => {
             const factory = await ethers.getContractFactory("SystemStaking3")
-            system = (await factory.deploy(MIN_AMOUNT)) as SystemStaking3
+            system = (await factory.deploy(MIN_AMOUNT, "0x0000000000000000000000000000000000000000")) as SystemStaking3
         })
 
         describe("create bucket", () => {

@@ -13,7 +13,10 @@ struct Bucket {
     address delegate;
 }
 
-interface SystemStaking2 {
+interface ISystemStaking2 {
+    function unlock(uint256 _tokenId) external;
+    function unstake(uint256 _tokenId) external;
+    function withdraw(uint256 _tokenId, address payable _recipient) external;
     function ownerOf(uint256 _tokenId) external view returns (address);
     function bucketOf(uint256 _tokenId) external view returns (Bucket memory);
     function blocksToUnstake(uint256 _tokenId) external view returns (uint256);
@@ -38,7 +41,7 @@ contract SystemStaking3 is ERC721, Ownable, Pausable {
     uint256 public constant MAX_DURATION = ONE_DAY * 365 * 3;
     uint256 public constant UNSTAKE_FREEZE_TIME = 3 * ONE_DAY;
     uint256 public immutable MIN_AMOUNT; // = 100 ether;
-    SystemStaking2 public immutable LEGACY_CONTRACT; // address of the legacy contract
+    ISystemStaking2 public immutable LEGACY_CONTRACT; // address of the legacy contract
 
     event Staked(uint256 indexed bucketId, address delegate, uint256 amount, uint256 duration);
     event Locked(uint256 indexed bucketId, uint256 duration);
@@ -47,6 +50,7 @@ contract SystemStaking3 is ERC721, Ownable, Pausable {
     event Merged(uint256[] bucketIds, uint256 amount, uint256 duration);
     event BucketExpanded(uint256 indexed bucketId, uint256 amount, uint256 duration);
     event DelegateChanged(uint256 indexed bucketId, address newDelegate);
+    event Migrated(uint256 indexed bucketId, uint256 indexed legacyBucketId);
     event Withdrawal(uint256 indexed bucketId, address indexed recipient);
     event Donated(uint256 indexed bucketId, address indexed beneficiary, uint256 amount);
     event BeneficiaryChanged(address indexed beneficiary);
@@ -67,8 +71,10 @@ contract SystemStaking3 is ERC721, Ownable, Pausable {
 
     constructor(uint256 _minAmount, address _legacyContract) ERC721("BucketNFTV3", "BKTV3") {
         MIN_AMOUNT = _minAmount;
-        LEGACY_CONTRACT = SystemStaking2(_legacyContract);
+        LEGACY_CONTRACT = ISystemStaking2(_legacyContract);
     }
+
+    receive() external payable {}
 
     function pause() external onlyOwner {
         _pause();
@@ -265,26 +271,22 @@ contract SystemStaking3 is ERC721, Ownable, Pausable {
         }
     }
 
-    // TODO:
-    //  1. unlock the legacy bucket, and unstake/withdraw it accordingly
-    //  2. add unit test for migration
     function migrateLegacyBucket(uint256 _legacyBucketId) external returns (uint256) {
         if (address(LEGACY_CONTRACT) == address(0)) {
             revert ErrInvalidParameter();
         }
-        // check if the legacy bucket is in stake
         if (LEGACY_CONTRACT.ownerOf(_legacyBucketId) != msg.sender) {
             revert ErrNotOwner();
         }
-        uint256 blocks = LEGACY_CONTRACT.blocksToUnstake(_legacyBucketId);
-        if (blocks != 0) {
-            revert ErrNotStakedBucket();
-        }
         Bucket memory legacyBucket = LEGACY_CONTRACT.bucketOf(_legacyBucketId);
+        // only the legacy bucket in lock can be migrated
+        _assertInStake(legacyBucket.unstakedAt);
         _assertInLock(legacyBucket.unlockedAt);
         LEGACY_CONTRACT.transferFrom(msg.sender, address(this), _legacyBucketId);
-        uint256 bucketId = _stake(legacyBucket.amount, legacyBucket.duration, legacyBucket.delegate);
+        // the duration of legacy bucket is in blocks with 5s interval, so we need to convert it to timestamp
+        uint256 bucketId = _stake(legacyBucket.amount, legacyBucket.duration * 5, legacyBucket.delegate);
         __legacyBucketIds[bucketId] = _legacyBucketId;
+        emit Migrated(bucketId, _legacyBucketId);
         return bucketId;
     }
 
@@ -392,6 +394,12 @@ contract SystemStaking3 is ERC721, Ownable, Pausable {
     function _unlock(uint256 _bucketId) internal onlyBucketOwner(_bucketId)  {
         Bucket storage bucket = __buckets[_bucketId];
         _assertInLock(bucket.unlockedAt);
+        uint256 legacyBucketId = __legacyBucketIds[_bucketId];
+        if (legacyBucketId != 0) {
+            if (!_isTriggered(LEGACY_CONTRACT.bucketOf(legacyBucketId).unlockedAt)) {
+                LEGACY_CONTRACT.unlock(legacyBucketId);
+            }
+        }
         bucket.unlockedAt = block.timestamp;
         emit Unlocked(_bucketId);
     }
@@ -414,6 +422,10 @@ contract SystemStaking3 is ERC721, Ownable, Pausable {
         }
         bucket.unlockedAt = block.timestamp;
         bucket.unstakedAt = block.timestamp;
+        uint256 legacyBucketId = __legacyBucketIds[_bucketId];
+        if (legacyBucketId != 0) {
+            LEGACY_CONTRACT.unstake(legacyBucketId);
+        }
         emit Unstaked(_bucketId);
     }
 
@@ -423,6 +435,10 @@ contract SystemStaking3 is ERC721, Ownable, Pausable {
             revert ErrNotReady();
         }
         _burn(_bucketId);
+        uint256 legacyBucketId = __legacyBucketIds[_bucketId];
+        if (legacyBucketId != 0) {
+            LEGACY_CONTRACT.withdraw(legacyBucketId, payable(address(this)));
+        }
         _safeTransfer(_recipient, bucket.amount);
         emit Withdrawal(_bucketId, _recipient);
     }
