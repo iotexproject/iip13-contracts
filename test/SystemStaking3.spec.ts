@@ -112,9 +112,10 @@ describe("SystemStaking3", () => {
     let staker: SignerWithAddress
     let alice: SignerWithAddress
     let beneficiary: SignerWithAddress
+    let receiver: SignerWithAddress
 
     before(async () => {
-        [owner, staker, alice, beneficiary] = await ethers.getSigners()
+        [owner, staker, alice, beneficiary, receiver] = await ethers.getSigners()
     })
 
     describe("owner", () => {
@@ -216,26 +217,28 @@ describe("SystemStaking3", () => {
         })
         it("migrate success", async () => {
             await legacy.connect(staker).approve(system.address, 1)
-            const migration = await system.connect(staker).migrateLegacyBucket(1)
-            expect(migration).to.be.emit(system, "Migrated").withArgs(1)
-            expect(migration).to.be.emit(system, "Staked").withArgs(1, DELEGATES[0], MIN_AMOUNT, DURATION_UNIT * 5)
+            await expect(system.connect(staker).migrateLegacyBucket(1))
+                .to.emit(system, "Migrated").withArgs(1, 1)
+                .to.be.emit(system, "Staked").withArgs(1, DELEGATES[0], MIN_AMOUNT, DURATION_UNIT * 5)
             await expectBucket(system, 1, staker.address, MIN_AMOUNT, DURATION_UNIT * 5, DELEGATES[0], UINT256_MAX, UINT256_MAX)
             expect(await legacy.ownerOf(1)).to.be.equal(system.address)
-            const unlock = await system.connect(staker)["unlock(uint256)"](1)
-            expect(unlock).to.be.emit(system, "Unlocked").withArgs(1)
-            expect(unlock).to.be.emit(legacy, "Unlocked").withArgs(1)
-            await expectBucket(legacy, 1, system.address, MIN_AMOUNT, DURATION_UNIT, DELEGATES[0], unlock.blockNumber, UINT256_MAX)
-            advanceBy(BigNumber.from(DURATION_UNIT))
+            expect(await system.connect(staker).expandBucket(1, DURATION_UNIT * 6, {value: MIN_AMOUNT})).to.be.emit(system, "BucketExpanded").withArgs(1, MIN_AMOUNT, DURATION_UNIT)
+            await expectBucket(system, 1, staker.address, MIN_AMOUNT.mul(2), DURATION_UNIT * 6, DELEGATES[0], UINT256_MAX, UINT256_MAX)
+            await expectBucket(legacy, 1, system.address, MIN_AMOUNT, DURATION_UNIT, DELEGATES[0], UINT256_MAX, UINT256_MAX)
+            await expect(system.connect(staker)["unlock(uint256)"](1))
+                .to.be.emit(system, "Unlocked").withArgs(1)
+                .to.be.emit(legacy, "Unlocked").withArgs(1)
+            await expectBucket(legacy, 1, system.address, MIN_AMOUNT, DURATION_UNIT, DELEGATES[0], (await latest()).number, UINT256_MAX)
+            await advanceBy(BigNumber.from(DURATION_UNIT))
             await expect(system.connect(staker)["unstake(uint256)"](1)).to.be.revertedWithCustomError(system, "ErrNotReady")
-            await advanceBy(BigNumber.from(DURATION_UNIT * 5))
-            const unstake = await system.connect(staker)["unstake(uint256)"](1)
-            expect(unstake).to.emit(system, "Unstaked").withArgs(1)
-            expect(unstake).to.emit(legacy, "Unstaked").withArgs(1)
+            await advanceBy(BigNumber.from(DURATION_UNIT * 6))
+            await expect(system.connect(staker)["unstake(uint256)"](1)).to.emit(system, "Unstaked").withArgs(1).to.emit(legacy, "Unstaked").withArgs(1)
             await advanceBy(BigNumber.from(DURATION_UNIT * 3 + 1))
 
-            const withdrawn = await system.connect(staker)["withdraw(uint256,address)"](1, staker.address)
-            expect(withdrawn).to.emit(legacy, "Withdrawal").withArgs(1, system.address)
-            expect(withdrawn).to.emit(system, "Withdrawal").withArgs(1, staker.address)
+            await expect(system.connect(staker)["withdraw(uint256,address)"](1, receiver.address))
+                .to.changeEtherBalance(receiver, MIN_AMOUNT.mul(2))
+                .to.emit(legacy, "Withdrawal").withArgs(1, system.address)
+                .to.emit(system, "Withdrawal").withArgs(1, receiver.address)
         })
     })
 
