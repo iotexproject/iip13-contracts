@@ -21,6 +21,7 @@ interface ISystemStaking2 {
     function bucketOf(uint256 _tokenId) external view returns (Bucket memory);
     function blocksToUnstake(uint256 _tokenId) external view returns (uint256);
     function transferFrom(address _from, address _to, uint256 _tokenId) external;
+    function changeDelegate(uint256 _tokenId, address _delegate) external;
 }
 
 error ErrInvalidAmount();
@@ -283,6 +284,7 @@ contract SystemStaking3 is ERC721, Ownable, Pausable {
         _assertInStake(legacyBucket.unstakedAt);
         _assertInLock(legacyBucket.unlockedAt);
         LEGACY_CONTRACT.transferFrom(msg.sender, address(this), _legacyBucketId);
+        LEGACY_CONTRACT.changeDelegate(_legacyBucketId, address(0));
         // the duration of legacy bucket is in blocks with 5s interval, so we need to convert it to timestamp
         uint256 bucketId = _stake(legacyBucket.amount, legacyBucket.duration * 5, legacyBucket.delegate);
         __legacyBucketIds[bucketId] = _legacyBucketId;

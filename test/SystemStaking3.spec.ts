@@ -67,6 +67,7 @@ const createBucketsForDelegates = async (
 const UINT256_MAX = ethers.BigNumber.from(
     "115792089237316195423570985008687907853269984665640564039457584007913129639935"
 )
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 const DELEGATES = [
     ethers.Wallet.createRandom().address,
     ethers.Wallet.createRandom().address,
@@ -121,7 +122,7 @@ describe("SystemStaking3", () => {
     describe("owner", () => {
         beforeEach(async () => {
             const factory = await ethers.getContractFactory("SystemStaking3")
-            system = (await factory.deploy(MIN_AMOUNT, "0x0000000000000000000000000000000000000000")) as SystemStaking3
+            system = (await factory.deploy(MIN_AMOUNT, ZERO_ADDRESS)) as SystemStaking3
         })
 
         describe("pause", () => {
@@ -218,17 +219,18 @@ describe("SystemStaking3", () => {
         it("migrate success", async () => {
             await legacy.connect(staker).approve(system.address, 1)
             await expect(system.connect(staker).migrateLegacyBucket(1))
+                .to.emit(legacy, "DelegateChanged").withArgs(1, ZERO_ADDRESS)
                 .to.emit(system, "Migrated").withArgs(1, 1)
-                .to.be.emit(system, "Staked").withArgs(1, DELEGATES[0], MIN_AMOUNT, DURATION_UNIT * 5)
+                .to.emit(system, "Staked").withArgs(1, DELEGATES[0], MIN_AMOUNT, DURATION_UNIT * 5)
             await expectBucket(system, 1, staker.address, MIN_AMOUNT, DURATION_UNIT * 5, DELEGATES[0], UINT256_MAX, UINT256_MAX)
             expect(await legacy.ownerOf(1)).to.be.equal(system.address)
             expect(await system.connect(staker).expandBucket(1, DURATION_UNIT * 6, {value: MIN_AMOUNT})).to.be.emit(system, "BucketExpanded").withArgs(1, MIN_AMOUNT, DURATION_UNIT)
             await expectBucket(system, 1, staker.address, MIN_AMOUNT.mul(2), DURATION_UNIT * 6, DELEGATES[0], UINT256_MAX, UINT256_MAX)
-            await expectBucket(legacy, 1, system.address, MIN_AMOUNT, DURATION_UNIT, DELEGATES[0], UINT256_MAX, UINT256_MAX)
+            await expectBucket(legacy, 1, system.address, MIN_AMOUNT, DURATION_UNIT, ZERO_ADDRESS, UINT256_MAX, UINT256_MAX)
             await expect(system.connect(staker)["unlock(uint256)"](1))
                 .to.be.emit(system, "Unlocked").withArgs(1)
                 .to.be.emit(legacy, "Unlocked").withArgs(1)
-            await expectBucket(legacy, 1, system.address, MIN_AMOUNT, DURATION_UNIT, DELEGATES[0], (await latest()).number, UINT256_MAX)
+            await expectBucket(legacy, 1, system.address, MIN_AMOUNT, DURATION_UNIT, ZERO_ADDRESS, (await latest()).number, UINT256_MAX)
             await advanceBy(BigNumber.from(DURATION_UNIT))
             await expect(system.connect(staker)["unstake(uint256)"](1)).to.be.revertedWithCustomError(system, "ErrNotReady")
             await advanceBy(BigNumber.from(DURATION_UNIT * 6))
@@ -245,7 +247,7 @@ describe("SystemStaking3", () => {
     describe("stake flow", () => {
         beforeEach(async () => {
             const factory = await ethers.getContractFactory("SystemStaking3")
-            system = (await factory.deploy(MIN_AMOUNT, "0x0000000000000000000000000000000000000000")) as SystemStaking3
+            system = (await factory.deploy(MIN_AMOUNT, ZERO_ADDRESS)) as SystemStaking3
         })
 
         describe("create bucket", () => {
